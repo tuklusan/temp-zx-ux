@@ -105,7 +105,19 @@ cpfile: ld (U_T),hl
         ld de,U_STB
         call sc_stat
         jr c,.no
-        ld hl,(U_T)
+        ld hl,CP_DST            ; the target is the source itself?
+        ld de,CP_TMP
+        call sc_stat
+        jr c,.new
+        ld hl,(CP_TMP)          ; (i-numbers)
+        ld de,(U_STB)
+        or a
+        sbc hl,de
+        jr nz,.new
+        ld hl,CP_DST
+        ld de,s_same
+        jr cpfile.xj0_41
+.new:   ld hl,(U_T)
         ld de,0
         call sc_open
         jr nc,.op
@@ -142,6 +154,7 @@ cpfile: ld (U_T),hl
         scf
         ret
 s_werr: db "write error",0
+s_same: db "same file",0
 e_cp:
 
 ; ------------------------------------------------------------- mv
@@ -174,8 +187,25 @@ mv_m:   pop hl
         ld de,CP_DST
         ld hl,CP_TMP
         call catpath
-.nd:    ; an existing target is replaced
+.nd:    ; the source must exist; an existing target that is not the
+        ; source itself is replaced
+        ld a,1
+        call argn
+        ld de,U_STB
+        call sc_stat
+        jr c,.nos
+        ld hl,(U_STB)           ; source i-number
+        push hl
         ld hl,CP_DST
+        ld de,U_STB
+        call sc_stat
+        pop de
+        jr c,.ul
+        ld hl,(U_STB)
+        or a
+        sbc hl,de
+        jp z,exit0              ; mv f f: nothing to do
+.ul:    ld hl,CP_DST
         call sc_unlink
         ld a,1
         call argn
@@ -192,6 +222,11 @@ mv_m:   pop hl
         call argn
         call sc_unlink
         jp exit0
+.nos:   ld a,1
+        call argn
+        ld de,s_cantopen
+        call perr
+        jr .err
 .xj0_31:
 .xj1_12:
 .xj2_4:
