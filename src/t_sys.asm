@@ -1,13 +1,17 @@
 ; =====================================================================
 ;  system programs: /etc/init /etc/getty /bin/login /bin/sh /etc/glob
 ;  Each program starts with an 8 byte header (v1 a.out style):
-;     jr .+8 ; text size ; bss size ; entry
+;     jr .+8 ; stack reserve ; bss size ; entry
+;  The stack reserve (at most STKRES) is the room its SAVE keeps for the
+;  stack and the arguments when another program takes the window: only
+;  what is live at a context switch, not the deepest kernel path.
 ; =====================================================================
 
 ; ------------------------------------------------------------- /etc/init
 ;  v1 init: fork a getty on the terminal, wait for it, do it again
+STK_INIT equ 160                ; switch frames, "/etc/init" argv, wait
 t_init: db 18h,6
-        dw e_init-t_init, TV-UDATA, init_m
+        dw STK_INIT, U_T+2-UDATA, init_m        ; only U_T is used
 init_m:
         ld hl,0                 ; init ignores interrupts
         call sc_intr
@@ -53,7 +57,7 @@ e_init:
 ; ------------------------------------------------------------- /etc/getty
 GT_NAME equ TV
 t_getty: db 18h,6
-        dw e_getty-t_getty, TV+40-UDATA, getty_m
+        dw STKRES, TV+40-UDATA, getty_m
 getty_m:
         ld a,TT_ECHO
         call gstty
@@ -98,7 +102,7 @@ e_getty:
 LG_N    equ TV
 LG_AV   equ TV+34
 t_login: db 18h,6
-        dw e_login-t_login, TV+38-UDATA, login_m
+        dw STKRES, TV+38-UDATA, login_m
 login_m:
         pop hl
         call args
@@ -178,12 +182,14 @@ SH_SAV  equ TV+485              ; saved terminator
 SH_SAVN equ TV+486
 SH_SAVA equ TV+488
 SH_INLV equ TV+490
-SH_SARV equ TV+492              ; 12 pointers
-SH_SARG equ TV+516              ; 160 argument strings
-SH_LB   equ TV+676
+SH_LB   equ TV+492
+; sh file only, above the break (shfile raises it while a script runs)
+SH_SARV equ TV+494              ; 12 pointers
+SH_SARG equ TV+518              ; 160 argument strings
 SH_LINE2 equ TV+678             ; 128
+SH_END  equ TV+806
 t_sh:   db 18h,6
-        dw e_sh-t_sh, TV+808-UDATA, sh_m
+        dw STKRES, SH_SARV-UDATA, sh_m
 sh_m:
         pop hl
         call args
@@ -606,7 +612,14 @@ shfile: ld a,(SH_INLV)
         ld hl,(SH_ARGV+2)
         jp sum_m.xj2_3  ; (shared tail)
 .op:    push hl                 ; fd
-        ; copy the arguments: $0 = file, $1 ...
+        ld hl,SH_END            ; the script buffers, while it runs
+        SC _break
+        jr nc,.bk
+        pop hl
+        call sc_close
+        ld hl,s_again
+        jp sherr
+.bk:    ; copy the arguments: $0 = file, $1 ...
         ld de,SH_SARG
         ld ix,SH_SARV
         ld b,1
@@ -682,6 +695,8 @@ shfile: ld a,(SH_INLV)
         ld (SH_INLV),a
         ld hl,SH_LINE
         ld (SH_LB),hl
+        ld hl,SH_SARV           ; give the script buffers back
+        SC _break
         ret
 
 ; execp: HL = name, DE = argv ; try name, /bin/name, /usr/bin/name
@@ -745,7 +760,7 @@ GL_PATHB equ GL_ENT+11          ; 64
 GL_BUF  equ GL_PATHB+64         ; KARGSZ bytes of names
 GL_END  equ GL_BUF+KARGSZ
 t_glob: db 18h,6
-        dw e_glob-t_glob, GL_END-UDATA, glob_m
+        dw STKRES, GL_END-UDATA, glob_m
 glob_m:
         pop hl
         call args

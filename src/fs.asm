@@ -179,8 +179,7 @@ itrunc:
         bit 3,(ix+1)            ; resident text: stays as it is
         ret nz
         push hl
-        ld l,(ix+I_DSKP)
-        ld h,(ix+I_DSKP+1)
+        call idskp
         call afree
         xor a
         ld (ix+I_DSKP),a
@@ -213,8 +212,7 @@ readi:
         call minhlde
         ld b,h
         ld c,l
-        ld l,(ix+I_DSKP)
-        ld h,(ix+I_DSKP+1)
+        call idskp
         ld de,(u_off)
         add hl,de
         ld de,(u_base)
@@ -247,8 +245,7 @@ writei:
         ld a,EFBIG
         ret c
         push hl
-        ld l,(ix+I_DSKP)
-        ld h,(ix+I_DSKP+1)
+        call idskp
         ld bc,0
         ld a,h
         or l
@@ -287,8 +284,7 @@ writei:
 .new:   ; the old contents (the old block may have moved: reload it)
         push hl
         ex de,hl
-        ld l,(ix+I_DSKP)
-        ld h,(ix+I_DSKP+1)
+        call idskp
         push hl
         ld c,(ix+I_SIZE)
         ld b,(ix+I_SIZE+1)
@@ -323,8 +319,7 @@ writei:
         ld a,b
         or c
         jr nz,.zg
-.cp:    ld l,(ix+I_DSKP)
-        ld h,(ix+I_DSKP+1)
+.cp:    call idskp
         ld de,(u_off)
         add hl,de
         ex de,hl
@@ -706,8 +701,7 @@ fclosea:
         ld a,(ix+1)
         and 0Ch                 ; resident text, packed: leave alone
         ret nz
-        ld l,(ix+I_DSKP)
-        ld h,(ix+I_DSKP+1)
+        call idskp
         ld a,h
         or l
         ret z

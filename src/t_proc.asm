@@ -93,7 +93,7 @@ pname:  ld a,b
 
 ; ------------------------------------------------------------- ps
 t_ps:   db 18h,6
-        dw e_ps-t_ps, PSEND-UDATA, ps_m
+        dw STKRES, PSEND-UDATA, ps_m
 ps_m:   call psread
         jp c,exit0
         ld hl,s_pshdr
@@ -163,7 +163,7 @@ e_ps:
 ; ------------------------------------------------------------- top
 ;  refreshes every 2 seconds at the top of the screen; BREAK stops it
 t_top:  db 18h,6
-        dw e_top-t_top, PSEND-UDATA, top_m
+        dw STKRES, PSEND-UDATA, top_m
 top_m:  ld a,12                 ; clear the screen once
         call putc
         call psread

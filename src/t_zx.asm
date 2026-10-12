@@ -6,7 +6,7 @@
 ;   zxpack -d file ...  unpack (any read of a packed file unpacks it)
 ; =====================================================================
 t_zxpack: db 18h,6
-        dw e_zxpack-t_zxpack, TV+12-UDATA, zxp_m
+        dw STKRES, TV+12-UDATA, zxp_m
 ZB      equ R_BUF               ; read buffer (128; no buffered reader)
 ZNF     equ TV                  ; packed files
 ZLOG    equ TV+2                ;   their size

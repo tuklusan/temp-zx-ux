@@ -32,7 +32,7 @@ VI_LIM  equ CORETOP-750         ; keep 750 bytes for stack and arguments
 VROWS   equ 22
 
 t_vi:   db 18h,6
-        dw e_vi-t_vi, VI_BUF-UDATA, vi_m
+        dw STKRES, VI_BUF-UDATA, vi_m
 vi_m:   pop hl
         call args
         ld hl,0                 ; BREAK does not kill the editor

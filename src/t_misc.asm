@@ -7,7 +7,7 @@
 ;  date [mmddhhmm[yy]]
 DT_T    equ TV                  ; 4 byte accumulator
 t_date: db 18h,6
-        dw e_date-t_date, TV+10-UDATA, date_m
+        dw STKRES, TV+10-UDATA, date_m
 date_m: pop hl
         call args
         ld a,1
@@ -192,7 +192,7 @@ e_date:
 ; ------------------------------------------------------------- stat
 ST_L    equ TV
 t_stat: db 18h,6
-        dw e_stat-t_stat, TV+7-UDATA, stat_m
+        dw STKRES, TV+7-UDATA, stat_m
 stat_m: pop hl
         call args
         ld a,1
@@ -259,7 +259,7 @@ WC_W    equ TV+2
 WC_C    equ TV+4
 WC_IN   equ TV+6
 t_wc:   db 18h,6
-        dw e_wc-t_wc, TV+8-UDATA, wc_m
+        dw STKRES, TV+8-UDATA, wc_m
 wc_m:   pop hl
         call args
         ld a,1
@@ -332,7 +332,7 @@ e_wc:
 OD_B    equ TV
 OD_O    equ TV+18
 t_od:   db 18h,6
-        dw e_od-t_od, TV+20-UDATA, od_m
+        dw STKRES, TV+20-UDATA, od_m
 od_m:   pop hl
         call args
         ld a,1
@@ -409,7 +409,7 @@ CM_B    equ TV+6                ; 128 second buffer
 CM_N    equ TV+134
 CM_P    equ TV+136
 t_cmp:  db 18h,6
-        dw e_cmp-t_cmp, CM_P+2-UDATA, cmp_m
+        dw STKRES, CM_P+2-UDATA, cmp_m
 cmp_m:  pop hl
         call args
         ld a,(U_ARGC)
@@ -519,7 +519,7 @@ e_cmp:
 
 ; ------------------------------------------------------------- sum
 t_sum:  db 18h,6
-        dw e_sum-t_sum, TV+4-UDATA, sum_m
+        dw STKRES, TV+4-UDATA, sum_m
 sum_m:  pop hl
         call args
         ld a,1
@@ -565,7 +565,7 @@ e_sum:
 
 ; ------------------------------------------------------------- echo
 t_echo: db 18h,6
-        dw e_echo-t_echo, TV-UDATA, echo_m
+        dw STKRES, TV-UDATA, echo_m
 echo_m: pop hl
         call args
         ld a,1
@@ -590,7 +590,7 @@ e_echo:
 
 ; ------------------------------------------------------------- sleep
 t_sleep: db 18h,6
-        dw e_sleep-t_sleep, TV-UDATA, sleep_m
+        dw STKRES, TV-UDATA, sleep_m
 sleep_m: pop hl
         call args
         ld a,1
@@ -615,13 +615,13 @@ e_sleep:
 
 ; ------------------------------------------------------------- cls
 t_cls:  db 18h,6
-        dw e_cls-t_cls, TV-UDATA, cls_m
+        dw STKRES, TV-UDATA, cls_m
 cls_m:  jp vquit.xj0_8  ; (shared tail)
 e_cls:
 
 ; ------------------------------------------------------------- demos
 t_hello: db 18h,6
-        dw e_hello-t_hello, TV-UDATA, hello_m
+        dw STKRES, TV-UDATA, hello_m
 hello_m: ld hl,s_hello
 .xj0_20:
         jp zxst.xj1_4  ; (shared tail)
@@ -629,14 +629,14 @@ s_hello: db "Hello World!",10,0
 e_hello:
 
 t_beep: db 18h,6
-        dw e_beep-t_beep, TV-UDATA, beep_m
+        dw STKRES, TV-UDATA, beep_m
 beep_m: ld a,7
         jp vquit.xj1_6  ; (shared tail)
 e_beep:
 
 ; clock: show the time every second (BREAK to stop)
 t_clock: db 18h,6
-        dw e_clock-t_clock, TV-UDATA, clock_m
+        dw STKRES, TV-UDATA, clock_m
 clock_m: call sc_time
         call ctime
         xor a
@@ -655,7 +655,7 @@ e_clock:
 ; forktest: parent and child print in turn - preemptive scheduling
 FK_C    equ TV
 t_fork: db 18h,6
-        dw e_fork-t_fork, TV+1-UDATA, fork_m
+        dw STKRES, TV+1-UDATA, fork_m
 fork_m: call sc_fork
         jr c,.p
         ld a,h

@@ -15,7 +15,7 @@ LX_NM   equ TV+19               ; the name looked for
 LX_END  equ TV+21
 
 t_ldx:  db 18h,6
-        dw e_ldx-t_ldx, LX_END-UDATA, ldx_m
+        dw STKRES, LX_END-UDATA, ldx_m
 ldx_m:  pop hl
         call args
         xor a

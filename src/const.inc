@@ -40,7 +40,8 @@ CORE    equ TRAMP-UASZ      ; u-area of the running process
 WINDOW  equ 0F000h          ; window: resident-text process images
 UDATA   equ WINDOW          ; first byte of user data
 CORETOP equ CORE            ; window top: stack and arguments below
-STKRES  equ 384             ; save space reserved for a process's stack
+STKRES  equ 384             ; most stack a program may reserve (its header's
+                            ; second word, saved with its window image)
 
 KV      equ 05B00h          ; kernel globals (printer buffer)
 KSTACK  equ 05F00h          ; kernel stack top (grows into 5CEB..)

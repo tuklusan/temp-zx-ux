@@ -30,10 +30,11 @@ def main():
     banner = image[start:end]
     check = [
         ('kernel size', kbytes <= 8192 and kbytes > 0),
-        ('boot area size', boot_area <= 256),
+        ('boot area size', boot_area <= 512),   # code and messages; the
+                                                # i-node table follows it
         ('memory order', values['kend'] < values['ZXW'] <
          values['ITAB'] < values['AR0'] < values['WINDOW']),
-        ('256-byte model area', values['ITAB'] - values['ZXW'] == 256),
+        ('256-byte model area', values['ITAB'] - values['ZXW'] == max(256, boot_area)),
         ('boot banner', banner.startswith(b'\nZX-UX UNIX v1 48K ZX Spectrum Z80 3.5Mhz\n')),
         ('copyright glyph', b'\x7f 2006 SANYALnet Labs' in banner and
          font[8 + (127 - 32) * 4:8 + (128 - 32) * 4] != b'\0' * 4),

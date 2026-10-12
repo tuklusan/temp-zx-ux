@@ -510,7 +510,6 @@ swtch:
 ; ---------------------------------------------------------------------
 
 ; imgext: A = slot -> sw_lo = break - UDATA, sw_hi = CORETOP - sp,
-;   sw_n = HL = UASZ + sw_lo + STKRES  (its SAVE block size)
 imgext: push af
         ld hl,p_brk
         call getw2
@@ -526,9 +525,6 @@ imgext: push af
         or a
         sbc hl,de
         ld (sw_hi),hl
-        ld hl,(sw_lo)
-        ld de,UASZ+STKRES
-        add hl,de
         ret
 
 ; ldirz: LDIR that does nothing for BC = 0
@@ -551,13 +547,20 @@ savead: ld hl,p_save
 ; wsave: A = slot (the window's owner): window image -> its SAVE
 wsave:  push af
         call imgext
-        ld hl,(sw_hi)
-        ld de,STKRES+1
-        call cphlde
-        jr c,.ok
-        ld hl,STKRES            ; too deep for its SAVE: keep the newest
-        ld (sw_hi),hl           ; STKRES bytes, it dies when it resumes
         pop af
+        push af
+        call savead
+        call acap               ; BC = its SAVE's size
+        ld hl,-UASZ
+        add hl,bc
+        ld de,(sw_lo)
+        or a
+        sbc hl,de               ; HL = the room left for the stack
+        ld de,(sw_hi)
+        call cphlde
+        jr nc,.ok
+        ld (sw_hi),hl           ; too deep for its SAVE: keep the newest
+        pop af                  ; bytes that fit, it dies when it resumes
         push af
         ld hl,p_sig
         call addhla
@@ -947,13 +950,10 @@ forkret:                        ; first run of the child
 forkmem:
         ld a,c
         ld (chslot),a
-        call isssx
+        call isssx              ; HL = this process's SAVE
         scf
         ret nz
-        ld a,(cur)
-        call imgext
-        ld b,h
-        ld c,l
+        call acap               ; the child's SAVE: the same size
         ld a,K_SAVE
         call aalloc
         ret c
@@ -1236,12 +1236,20 @@ sysbreak:                       ; HL = new break
         call cphlde
         jr c,.bad
         ; a window image that big must fit its SAVE block
-        push hl
-        ld de,UDATA-UASZ-STKRES
+        push hl                 ; SAVE size needed: as now + (new - old
+        ex de,hl                ; break), so the stack reserve is kept
+        call curbrk
+        call getw2
+        ex de,hl
         or a
         sbc hl,de
+        push hl
+        call cursave
+        call acap
+        pop hl
+        add hl,bc
         ld b,h
-        ld c,l                  ; SAVE size needed
+        ld c,l
         call savefit
         jr c,.bad1
         pop de
@@ -1336,8 +1344,8 @@ kexec:
         ld a,(ix+0)
         and IEXEC
         jr z,.nox
-        ld l,(ix+I_DSKP)        ; its 8-byte a.out style header:
-        ld h,(ix+I_DSKP+1)      ; jr .+8, text size, bss size, entry
+        call idskp              ; its 8-byte a.out style header:
+                                ; jr .+8, stack reserve, bss size, entry
         ld de,xhdr
         ld bc,8
         ldir
@@ -1367,10 +1375,12 @@ kexec:
         pop hl
         jr .big
 .wok:   pop hl
-        ; a SAVE block for an image that big
-        ld de,UDATA-UASZ-STKRES
+        ; a SAVE block: u-area, data and bss, the program's stack reserve
+        ld de,UDATA-UASZ
         or a
         sbc hl,de
+        ld de,(xhdr+2)
+        add hl,de
         ld b,h
         ld c,l
         call savefit
@@ -1827,6 +1837,10 @@ setdirty:
 curbrk: ld a,(cur)
         ld hl,p_brk
         ret
+; idskp: IX = i-node -> HL = its block (i.dskp)
+idskp:  ld l,(ix+I_DSKP)
+        ld h,(ix+I_DSKP+1)
+        ret
 ; isize: IX = i-node -> HL = its size
 isize:  ld l,(ix+I_SIZE)
         ld h,(ix+I_SIZE+1)
@@ -1900,15 +1914,6 @@ FONTEND:
 ; the resident programs: text address, size, extra mode bits (build.py)
 PTAB:   include "ptab.inc"
 
-; Startup messages live in resident user text, outside the 8 KB kernel and
-; outside the 256-byte boot code / zxpack model work area.
-msg_boot:
-        db 10,"ZX-UX UNIX v1 48K ZX Spectrum Z80 3.5Mhz",10
-        db 127," 2006 SANYALnet Labs",10
-        db "ZX-UX v1 kernel "
-        include "../build/bootinfo.inc"
-msg_ok: db "ok",10,0
-msg_nofs: db "no root fs",0
 utext_end:
 
 ; ---------------------------------------------------------------------
@@ -1994,12 +1999,22 @@ boot:
         call uinit
         ei
         jp kinit                ; exec /etc/init
+; Startup messages: printed once, so they live in the boot area too
+msg_boot:
+        db 10,"ZX-UX UNIX v1 48K ZX Spectrum Z80 3.5Mhz",10
+        db 127," 2006 SANYALnet Labs",10
+        db "ZX-UX v1 kernel "
+        include "../build/bootinfo.inc"
+msg_ok: db "ok",10,0
+msg_nofs: db "no root fs",0
 
 bootend:
-        ASSERT bootend - ZXW <= ZXWSZ
 
-; the i-node table and the arena follow, up to the window
-ITAB    equ ZXW + ZXWSZ
+; the i-node table and the arena follow, up to the window.  The boot area
+; is ZXWSZ bytes, or longer if the boot code and messages need it (true
+; is -1 in sjasmplus expressions)
+ZXEXTRA equ -((bootend - ZXW > ZXWSZ) * (bootend - ZXW - ZXWSZ))
+ITAB    equ ZXW + ZXWSZ + ZXEXTRA
 AR0     equ ITAB + NINODE*INOSZ
 
         SAVEBIN "unix.bin", KBASE, bootend-KBASE

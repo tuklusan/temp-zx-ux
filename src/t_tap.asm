@@ -7,7 +7,7 @@
 DU_P    equ TV                  ; 80 path
 DU_E    equ TV+80               ; 10 entry + 0
 t_du:   db 18h,6
-        dw e_du-t_du, DU_E+11-UDATA, du_m
+        dw STKRES, DU_E+11-UDATA, du_m
 du_m:   pop hl
         call args
         ld a,1
