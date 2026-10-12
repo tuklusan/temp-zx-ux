@@ -1,0 +1,259 @@
+# dispositions.tsv - how each paragraph without a linked test is resolved.
+# Columns: paragraph, kind, reason.  Kinds: HEADING, FRONT, INFO, SUMMARY,
+# PROCESS, DOC (requirement on the specification document), OTHER-IMPL
+# (requirement on a separate host implementation or checker that does not
+# exist in the repository), UNSPECIFIED (outside the portable contract: no
+# defined result), RESOURCE (needs more memory than a ZX-UX process has).
+# run_suite.py uses a disposition only for a paragraph no test is tagged with.
+P0001	HEADING	section heading; its requirements are the paragraphs that follow
+P0002	HEADING	section heading; its requirements are the paragraphs that follow
+P0003	FRONT	title page / status line; names the documents and target, states no testable rule
+P0004	FRONT	title page / status line; names the documents and target, states no testable rule
+P0005	FRONT	title page / status line; names the documents and target, states no testable rule
+P0006	FRONT	title page / status line; names the documents and target, states no testable rule
+P0007	FRONT	title page / status line; names the documents and target, states no testable rule
+P0008	FRONT	title page / status line; names the documents and target, states no testable rule
+P0009	FRONT	title page / status line; names the documents and target, states no testable rule
+P0011	HEADING	section heading; its requirements are the paragraphs that follow
+P0012	INFO	statement of purpose; the rules it announces are tested where they are stated
+P0013	INFO	statement of purpose; the rules it announces are tested where they are stated
+P0014	INFO	statement of purpose; the rules it announces are tested where they are stated
+P0015	INFO	statement of purpose; the rules it announces are tested where they are stated
+P0016	INFO	statement of purpose; the rules it announces are tested where they are stated
+P0017	INFO	statement of purpose; the rules it announces are tested where they are stated
+P0018	INFO	statement of purpose; the rules it announces are tested where they are stated
+P0019	INFO	says which documents control which topics (language vs. SPEC-SDK-R2/SPEC-ELASTIC-R2); the controlled formats are tested by the tool and link groups
+P0020	INFO	says which documents control which topics (language vs. SPEC-SDK-R2/SPEC-ELASTIC-R2); the controlled formats are tested by the tool and link groups
+P0021	PROCESS	instruction to implementers (record discrepancies; no substitute behaviour); not a property of rcc output. This suite records every discrepancy it finds
+P0022	PROCESS	instruction to implementers (record discrepancies; no substitute behaviour); not a property of rcc output. This suite records every discrepancy it finds
+P0024	HEADING	section heading; its requirements are the paragraphs that follow
+P0025	INFO	definition of conformance terms used elsewhere
+P0026	INFO	definition of conformance terms used elsewhere
+P0031	HEADING	section heading; its requirements are the paragraphs that follow
+P0032	INFO	explains that C48 is a subset of C with its own rules; no separately testable behaviour
+P0033	INFO	explains that C48 is a subset of C with its own rules; no separately testable behaviour
+P0034	INFO	explains that C48 is a subset of C with its own rules; no separately testable behaviour
+P0035	INFO	explains that C48 is a subset of C with its own rules; no separately testable behaviour
+P0036	INFO	explains that C48 is a subset of C with its own rules; no separately testable behaviour
+P0038	HEADING	section heading; its requirements are the paragraphs that follow
+P0053	HEADING	section heading; its requirements are the paragraphs that follow
+P0062	HEADING	section heading; its requirements are the paragraphs that follow
+P0069	HEADING	section heading; its requirements are the paragraphs that follow
+P0081	HEADING	section heading; its requirements are the paragraphs that follow
+P0098	HEADING	section heading; its requirements are the paragraphs that follow
+P0106	HEADING	section heading; its requirements are the paragraphs that follow
+P0113	INFO	reservation does not promise future support; nothing to test
+P0114	HEADING	section heading; its requirements are the paragraphs that follow
+P0119	HEADING	section heading; its requirements are the paragraphs that follow
+P0134	HEADING	section heading; its requirements are the paragraphs that follow
+P0148	HEADING	section heading; its requirements are the paragraphs that follow
+P0160	HEADING	section heading; its requirements are the paragraphs that follow
+P0174	HEADING	section heading; its requirements are the paragraphs that follow
+P0184	HEADING	section heading; its requirements are the paragraphs that follow
+P0192	HEADING	section heading; its requirements are the paragraphs that follow
+P0206	OTHER-IMPL	requirement on a Windows C48 implementation; none is in the repository. rcc itself is tested against the ROM by t4_float.c
+P0210	HEADING	section heading; its requirements are the paragraphs that follow
+P0215	INFO	rationale for the canonical spellings tested at P0211-P0214
+P0220	HEADING	section heading; its requirements are the paragraphs that follow
+P0234	HEADING	section heading; its requirements are the paragraphs that follow
+P0243	HEADING	section heading; its requirements are the paragraphs that follow
+P0251	HEADING	section heading; its requirements are the paragraphs that follow
+P0265	HEADING	section heading; its requirements are the paragraphs that follow
+P0276	INFO	consequence of having no tags/labels/typedefs; the shared namespace is tested by dd_kind_conflict(_2)
+P0280	HEADING	section heading; its requirements are the paragraphs that follow
+P0286	HEADING	section heading; its requirements are the paragraphs that follow
+P0290	HEADING	section heading; its requirements are the paragraphs that follow
+P0295	UNSPECIFIED	uninitialized automatic objects have unspecified bits; reading them is outside the portable contract, so there is no defined result to test
+P0297	HEADING	section heading; its requirements are the paragraphs that follow
+P0305	HEADING	section heading; its requirements are the paragraphs that follow
+P0312	HEADING	section heading; its requirements are the paragraphs that follow
+P0323	HEADING	section heading; its requirements are the paragraphs that follow
+P0329	HEADING	section heading; its requirements are the paragraphs that follow
+P0334	HEADING	section heading; its requirements are the paragraphs that follow
+P0350	HEADING	section heading; its requirements are the paragraphs that follow
+P0365	HEADING	section heading; its requirements are the paragraphs that follow
+P0374	HEADING	section heading; its requirements are the paragraphs that follow
+P0385	HEADING	section heading; its requirements are the paragraphs that follow
+P0399	HEADING	section heading; its requirements are the paragraphs that follow
+P0409	HEADING	section heading; its requirements are the paragraphs that follow
+P0416	HEADING	section heading; its requirements are the paragraphs that follow
+P0421	HEADING	section heading; its requirements are the paragraphs that follow
+P0433	HEADING	section heading; its requirements are the paragraphs that follow
+P0439	HEADING	section heading; its requirements are the paragraphs that follow
+P0453	HEADING	section heading; its requirements are the paragraphs that follow
+P0457	UNSPECIFIED	invalid dereferences are outside the portable contract; the 48K target has no memory protection, so no defined behaviour can be tested
+P0459	HEADING	section heading; its requirements are the paragraphs that follow
+P0466	HEADING	section heading; its requirements are the paragraphs that follow
+P0475	HEADING	section heading; its requirements are the paragraphs that follow
+P0483	HEADING	section heading; its requirements are the paragraphs that follow
+P0488	HEADING	section heading; its requirements are the paragraphs that follow
+P0495	HEADING	section heading; its requirements are the paragraphs that follow
+P0503	HEADING	section heading; its requirements are the paragraphs that follow
+P0508	HEADING	section heading; its requirements are the paragraphs that follow
+P0525	HEADING	section heading; its requirements are the paragraphs that follow
+P0534	UNSPECIFIED	ordering unrelated pointers is outside the portable contract
+P0537	HEADING	section heading; its requirements are the paragraphs that follow
+P0541	RESOURCE	the wrap of a pointer difference beyond 32767 elements needs one object of more than 32 KB; a ZX-UX process (and rvm, which loads at 8000h) cannot hold it. Same-object differences within range are tested (t3 ck4108-4110)
+P0544	RESOURCE	the wrap of a pointer difference beyond 32767 elements needs one object of more than 32 KB; a ZX-UX process (and rvm, which loads at 8000h) cannot hold it. Same-object differences within range are tested (t3 ck4108-4110)
+P0546	HEADING	section heading; its requirements are the paragraphs that follow
+P0562	HEADING	section heading; its requirements are the paragraphs that follow
+P0568	HEADING	section heading; its requirements are the paragraphs that follow
+P0576	HEADING	section heading; its requirements are the paragraphs that follow
+P0584	HEADING	section heading; its requirements are the paragraphs that follow
+P0592	HEADING	section heading; its requirements are the paragraphs that follow
+P0599	HEADING	section heading; its requirements are the paragraphs that follow
+P0612	HEADING	section heading; its requirements are the paragraphs that follow
+P0621	HEADING	section heading; its requirements are the paragraphs that follow
+P0628	HEADING	section heading; its requirements are the paragraphs that follow
+P0636	HEADING	section heading; its requirements are the paragraphs that follow
+P0642	HEADING	section heading; its requirements are the paragraphs that follow
+P0648	HEADING	section heading; its requirements are the paragraphs that follow
+P0656	HEADING	section heading; its requirements are the paragraphs that follow
+P0662	HEADING	section heading; its requirements are the paragraphs that follow
+P0669	HEADING	section heading; its requirements are the paragraphs that follow
+P0678	HEADING	section heading; its requirements are the paragraphs that follow
+P0685	HEADING	section heading; its requirements are the paragraphs that follow
+P0692	HEADING	section heading; its requirements are the paragraphs that follow
+P0698	HEADING	section heading; its requirements are the paragraphs that follow
+P0705	HEADING	section heading; its requirements are the paragraphs that follow
+P0714	HEADING	section heading; its requirements are the paragraphs that follow
+P0738	HEADING	section heading; its requirements are the paragraphs that follow
+P0744	HEADING	section heading; its requirements are the paragraphs that follow
+P0749	HEADING	section heading; its requirements are the paragraphs that follow
+P0755	HEADING	section heading; its requirements are the paragraphs that follow
+P0758	INFO	describes the host compiler architecture; the behaviour it requires is the rest of the specification
+P0759	INFO	describes the host compiler architecture; the behaviour it requires is the rest of the specification
+P0761	HEADING	section heading; its requirements are the paragraphs that follow
+P0772	HEADING	section heading; its requirements are the paragraphs that follow
+P0784	HEADING	section heading; its requirements are the paragraphs that follow
+P0792	HEADING	section heading; its requirements are the paragraphs that follow
+P0793	OTHER-IMPL	requirement on a Windows/host C48 implementation (abstract machine, pointer model, floating oracle); none is in the repository, so it cannot be tested here
+P0794	OTHER-IMPL	requirement on a Windows/host C48 implementation (abstract machine, pointer model, floating oracle); none is in the repository, so it cannot be tested here
+P0795	OTHER-IMPL	requirement on a Windows/host C48 implementation (abstract machine, pointer model, floating oracle); none is in the repository, so it cannot be tested here
+P0796	OTHER-IMPL	requirement on a Windows/host C48 implementation (abstract machine, pointer model, floating oracle); none is in the repository, so it cannot be tested here
+P0798	HEADING	section heading; its requirements are the paragraphs that follow
+P0799	OTHER-IMPL	requirement on a Windows/host C48 implementation (abstract machine, pointer model, floating oracle); none is in the repository, so it cannot be tested here
+P0800	OTHER-IMPL	requirement on a Windows/host C48 implementation (abstract machine, pointer model, floating oracle); none is in the repository, so it cannot be tested here
+P0803	OTHER-IMPL	requirement on a Windows/host C48 implementation (abstract machine, pointer model, floating oracle); none is in the repository, so it cannot be tested here
+P0805	HEADING	section heading; its requirements are the paragraphs that follow
+P0806	OTHER-IMPL	requirement on a Windows/host C48 implementation (abstract machine, pointer model, floating oracle); none is in the repository, so it cannot be tested here
+P0809	OTHER-IMPL	requirement on a Windows/host C48 implementation (abstract machine, pointer model, floating oracle); none is in the repository, so it cannot be tested here
+P0812	HEADING	section heading; its requirements are the paragraphs that follow
+P0813	OTHER-IMPL	requirements on the strict Windows portability checker; no such checker is in the repository
+P0814	OTHER-IMPL	requirements on the strict Windows portability checker; no such checker is in the repository
+P0815	OTHER-IMPL	requirements on the strict Windows portability checker; no such checker is in the repository
+P0816	OTHER-IMPL	requirements on the strict Windows portability checker; no such checker is in the repository
+P0817	OTHER-IMPL	requirements on the strict Windows portability checker; no such checker is in the repository
+P0818	OTHER-IMPL	requirements on the strict Windows portability checker; no such checker is in the repository
+P0819	OTHER-IMPL	requirements on the strict Windows portability checker; no such checker is in the repository
+P0820	OTHER-IMPL	requirements on the strict Windows portability checker; no such checker is in the repository
+P0821	OTHER-IMPL	requirements on the strict Windows portability checker; no such checker is in the repository
+P0822	OTHER-IMPL	requirements on the strict Windows portability checker; no such checker is in the repository
+P0823	OTHER-IMPL	requirements on the strict Windows portability checker; no such checker is in the repository
+P0824	OTHER-IMPL	requirements on the strict Windows portability checker; no such checker is in the repository
+P0825	OTHER-IMPL	requirements on the strict Windows portability checker; no such checker is in the repository
+P0826	OTHER-IMPL	requirements on the strict Windows portability checker; no such checker is in the repository
+P0827	OTHER-IMPL	requirements on the strict Windows portability checker; no such checker is in the repository
+P0828	OTHER-IMPL	requirements on the strict Windows portability checker; no such checker is in the repository
+P0830	HEADING	section heading; its requirements are the paragraphs that follow
+P0835	HEADING	section heading; its requirements are the paragraphs that follow
+P0841	HEADING	section heading; its requirements are the paragraphs that follow
+P0847	HEADING	section heading; its requirements are the paragraphs that follow
+P0854	HEADING	section heading; its requirements are the paragraphs that follow
+P0874	HEADING	section heading; its requirements are the paragraphs that follow
+P0882	HEADING	section heading; its requirements are the paragraphs that follow
+P0900	HEADING	section heading; its requirements are the paragraphs that follow
+P0905	HEADING	section heading; its requirements are the paragraphs that follow
+P0912	OTHER-IMPL	the float corpus must also run on an independent host C48 implementation; none exists in the repository (ROM and rcc runs are done: P0910, P0911)
+P0915	HEADING	section heading; its requirements are the paragraphs that follow
+P0916	INFO	states which document owns which rules; no behaviour to test
+P0917	INFO	states which document owns which rules; no behaviour to test
+P0920	INFO	states which document owns which rules; no behaviour to test
+P0922	HEADING	section heading; its requirements are the paragraphs that follow
+P0923	INFO	states which document owns which rules; no behaviour to test
+P0926	INFO	explains that historical pseudocode is not C48; const itself is tested as rejected (P0928, P0932)
+P0927	INFO	explains that historical pseudocode is not C48; const itself is tested as rejected (P0928, P0932)
+P0930	HEADING	section heading; its requirements are the paragraphs that follow
+P0935	HEADING	section heading; its requirements are the paragraphs that follow
+P0936	PROCESS	development process directive (stop and record unresolved contracts; tests do not create the specification); not a property of the toolchain
+P0937	PROCESS	development process directive (stop and record unresolved contracts; tests do not create the specification); not a property of the toolchain
+P0938	PROCESS	development process directive (stop and record unresolved contracts; tests do not create the specification); not a property of the toolchain
+P0939	PROCESS	development process directive (stop and record unresolved contracts; tests do not create the specification); not a property of the toolchain
+P0940	PROCESS	development process directive (stop and record unresolved contracts; tests do not create the specification); not a property of the toolchain
+P0941	PROCESS	development process directive (stop and record unresolved contracts; tests do not create the specification); not a property of the toolchain
+P0942	PROCESS	development process directive (stop and record unresolved contracts; tests do not create the specification); not a property of the toolchain
+P0943	PROCESS	development process directive (stop and record unresolved contracts; tests do not create the specification); not a property of the toolchain
+P0944	PROCESS	development process directive (stop and record unresolved contracts; tests do not create the specification); not a property of the toolchain
+P0946	HEADING	section heading; its requirements are the paragraphs that follow
+P0947	OTHER-IMPL	equivalence between a separate host C48 implementation and rcc-compiled programs; no host implementation exists. Native vs bytecode back ends and rvm vs ZX-UX runs of the same programs are compared instead (equiv:* and zxux:* results)
+P0948	OTHER-IMPL	equivalence between a separate host C48 implementation and rcc-compiled programs; no host implementation exists. Native vs bytecode back ends and rvm vs ZX-UX runs of the same programs are compared instead (equiv:* and zxux:* results)
+P0949	OTHER-IMPL	equivalence between a separate host C48 implementation and rcc-compiled programs; no host implementation exists. Native vs bytecode back ends and rvm vs ZX-UX runs of the same programs are compared instead (equiv:* and zxux:* results)
+P0950	OTHER-IMPL	equivalence between a separate host C48 implementation and rcc-compiled programs; no host implementation exists. Native vs bytecode back ends and rvm vs ZX-UX runs of the same programs are compared instead (equiv:* and zxux:* results)
+P0951	OTHER-IMPL	equivalence between a separate host C48 implementation and rcc-compiled programs; no host implementation exists. Native vs bytecode back ends and rvm vs ZX-UX runs of the same programs are compared instead (equiv:* and zxux:* results)
+P0952	OTHER-IMPL	equivalence between a separate host C48 implementation and rcc-compiled programs; no host implementation exists. Native vs bytecode back ends and rvm vs ZX-UX runs of the same programs are compared instead (equiv:* and zxux:* results)
+P0953	OTHER-IMPL	equivalence between a separate host C48 implementation and rcc-compiled programs; no host implementation exists. Native vs bytecode back ends and rvm vs ZX-UX runs of the same programs are compared instead (equiv:* and zxux:* results)
+P0954	OTHER-IMPL	equivalence between a separate host C48 implementation and rcc-compiled programs; no host implementation exists. Native vs bytecode back ends and rvm vs ZX-UX runs of the same programs are compared instead (equiv:* and zxux:* results)
+P0955	OTHER-IMPL	equivalence between a separate host C48 implementation and rcc-compiled programs; no host implementation exists. Native vs bytecode back ends and rvm vs ZX-UX runs of the same programs are compared instead (equiv:* and zxux:* results)
+P0956	OTHER-IMPL	equivalence between a separate host C48 implementation and rcc-compiled programs; no host implementation exists. Native vs bytecode back ends and rvm vs ZX-UX runs of the same programs are compared instead (equiv:* and zxux:* results)
+P0958	OTHER-IMPL	equivalence between a separate host C48 implementation and rcc-compiled programs; no host implementation exists. Native vs bytecode back ends and rvm vs ZX-UX runs of the same programs are compared instead (equiv:* and zxux:* results)
+P0961	HEADING	section heading; its requirements are the paragraphs that follow
+P0962	PROCESS	requires rules to be mapped to automated tests; this suite and its resolution table are that mapping
+P0963	DOC	lists what the specification document (c48.md) must freeze; a requirement on the document, not on the compiler. The items themselves are tested in their own sections
+P0964	DOC	lists what the specification document (c48.md) must freeze; a requirement on the document, not on the compiler. The items themselves are tested in their own sections
+P0965	DOC	lists what the specification document (c48.md) must freeze; a requirement on the document, not on the compiler. The items themselves are tested in their own sections
+P0966	DOC	lists what the specification document (c48.md) must freeze; a requirement on the document, not on the compiler. The items themselves are tested in their own sections
+P0967	DOC	lists what the specification document (c48.md) must freeze; a requirement on the document, not on the compiler. The items themselves are tested in their own sections
+P0968	DOC	lists what the specification document (c48.md) must freeze; a requirement on the document, not on the compiler. The items themselves are tested in their own sections
+P0969	DOC	lists what the specification document (c48.md) must freeze; a requirement on the document, not on the compiler. The items themselves are tested in their own sections
+P0970	DOC	lists what the specification document (c48.md) must freeze; a requirement on the document, not on the compiler. The items themselves are tested in their own sections
+P0971	DOC	lists what the specification document (c48.md) must freeze; a requirement on the document, not on the compiler. The items themselves are tested in their own sections
+P0972	DOC	lists what the specification document (c48.md) must freeze; a requirement on the document, not on the compiler. The items themselves are tested in their own sections
+P0973	DOC	lists what the specification document (c48.md) must freeze; a requirement on the document, not on the compiler. The items themselves are tested in their own sections
+P0974	DOC	lists what the specification document (c48.md) must freeze; a requirement on the document, not on the compiler. The items themselves are tested in their own sections
+P0975	DOC	lists what the specification document (c48.md) must freeze; a requirement on the document, not on the compiler. The items themselves are tested in their own sections
+P0976	DOC	lists what the specification document (c48.md) must freeze; a requirement on the document, not on the compiler. The items themselves are tested in their own sections
+P0977	DOC	lists what the specification document (c48.md) must freeze; a requirement on the document, not on the compiler. The items themselves are tested in their own sections
+P0978	DOC	lists what the specification document (c48.md) must freeze; a requirement on the document, not on the compiler. The items themselves are tested in their own sections
+P0979	DOC	lists what the specification document (c48.md) must freeze; a requirement on the document, not on the compiler. The items themselves are tested in their own sections
+P0980	DOC	lists what the specification document (c48.md) must freeze; a requirement on the document, not on the compiler. The items themselves are tested in their own sections
+P0981	DOC	lists what the specification document (c48.md) must freeze; a requirement on the document, not on the compiler. The items themselves are tested in their own sections
+P0982	DOC	lists what the specification document (c48.md) must freeze; a requirement on the document, not on the compiler. The items themselves are tested in their own sections
+P0983	DOC	lists what the specification document (c48.md) must freeze; a requirement on the document, not on the compiler. The items themselves are tested in their own sections
+P0984	DOC	lists what the specification document (c48.md) must freeze; a requirement on the document, not on the compiler. The items themselves are tested in their own sections
+P0986	HEADING	section heading; its requirements are the paragraphs that follow
+P0987	PROCESS	release-verification process; this suite is a fresh run on the current SDK. FUSE boot and display comparison are outside a compiler/linker suite (see docs/V1-FUSE-BOOT-VERIFICATION.md)
+P0988	PROCESS	release-verification process; this suite is a fresh run on the current SDK. FUSE boot and display comparison are outside a compiler/linker suite (see docs/V1-FUSE-BOOT-VERIFICATION.md)
+P0990	PROCESS	release-verification process; this suite is a fresh run on the current SDK. FUSE boot and display comparison are outside a compiler/linker suite (see docs/V1-FUSE-BOOT-VERIFICATION.md)
+P0992	HEADING	section heading; its requirements are the paragraphs that follow
+P0993	SUMMARY	summary of the keyword set; tested at P0099-P0112 (n2_decl.cases kw_*, kw_supported_as_name) and by every program using the keywords
+P0994	SUMMARY	summary of the keyword set; tested at P0099-P0112 (n2_decl.cases kw_*, kw_supported_as_name) and by every program using the keywords
+P1005	SUMMARY	summary lead-in for the data model tested at P0222 (t2 ck2001-2006)
+P1010	HEADING	section heading; its requirements are the paragraphs that follow
+P1011	PROCESS	developer directive (encode the frozen language, do not invent); not a property of the toolchain output
+P1012	PROCESS	developer directive (encode the frozen language, do not invent); not a property of the toolchain output
+P1013	PROCESS	developer directive (encode the frozen language, do not invent); not a property of the toolchain output
+P1014	PROCESS	developer directive (encode the frozen language, do not invent); not a property of the toolchain output
+P1015	PROCESS	developer directive (encode the frozen language, do not invent); not a property of the toolchain output
+P1016	PROCESS	developer directive (encode the frozen language, do not invent); not a property of the toolchain output
+P1017	PROCESS	developer directive (encode the frozen language, do not invent); not a property of the toolchain output
+P1018	PROCESS	developer directive (encode the frozen language, do not invent); not a property of the toolchain output
+P1019	PROCESS	developer directive (encode the frozen language, do not invent); not a property of the toolchain output
+P1020	PROCESS	developer directive (encode the frozen language, do not invent); not a property of the toolchain output
+P1021	HEADING	section heading; its requirements are the paragraphs that follow
+P1022	INFO	introduces the normative grammar; the grammar blocks are tagged to the tests that exercise them (P1024, P1027, P1030, P1032, P1035, P1038)
+P1023	HEADING	section heading; its requirements are the paragraphs that follow
+P1026	HEADING	section heading; its requirements are the paragraphs that follow
+P1029	HEADING	section heading; its requirements are the paragraphs that follow
+P1031	HEADING	section heading; its requirements are the paragraphs that follow
+P1034	HEADING	section heading; its requirements are the paragraphs that follow
+P1037	HEADING	section heading; its requirements are the paragraphs that follow
+P1040	HEADING	section heading; its requirements are the paragraphs that follow
+P1045	HEADING	section heading; its requirements are the paragraphs that follow
+P1046	SUMMARY	lead-in for the Appendix C cases P1047-P1070, each tested on its own
+P1071	HEADING	section heading; its requirements are the paragraphs that follow
+P1075	HEADING	section heading; its requirements are the paragraphs that follow
+P1080	UNSPECIFIED	argument strings are read-only by contract only (no memory protection); argv contents and lifetime are tested at P0369/P0370 (t7)
+P1081	HEADING	section heading; its requirements are the paragraphs that follow
+P1086	INFO	states that rcc uses no on-device transaction; a future guarantee would need its own test. Failure-path output behaviour is tested (tool:error_no_object, tool:no_source_overwrite)
+P1091	HEADING	section heading; its requirements are the paragraphs that follow
+P1093	INFO	terminology (compatible pointer, integer/arithmetic operand) applied by the pointer and operand-domain tests

@@ -1,0 +1,390 @@
+// p_accept.cases - C48 positive corpus: small programs that must compile,
+// link and exit with status 0 on both back ends (each case is built on its
+// own, so one rejected construct does not hide the others).  Format as in
+// n1_lex.cases.  Options: nolf (no LF after the last line), crlf (CRLF line
+// ends), may (an optional or conditional requirement: a failure is reported
+// as NOTE, not FAIL - P0046 says a host compiler MAY accept CRLF; P0319
+// requires NULL "once the <c48.h> declaration set is frozen").
+//== ac_final_line_no_lf P0054 P0055 P1066 nolf
+int main(void) { return 0; }
+//== ac_crlf_input P0046 crlf may
+int main(void)
+{
+    return 0;
+}
+//== ac_comments_only_lines P0074 P0079 nolf
+int main(void) { return 0; } // a final line comment without LF
+//== ac_sizeof_object_in_initializer P0412
+int other;
+int g = sizeof other;
+int main(void) { return !(g == 2); }
+//== ac_visible_after_declarator P0270
+int g = sizeof g;
+int main(void)
+{
+    int l = sizeof l;
+    return !(g == 2 && l == 2);
+}
+//== ac_float_postfix_value P0563 P0564 P0565 P1073
+int main(void)
+{
+    float f;
+    float g;
+    f = 2.0;
+    g = f++;
+    return !(g == 2.0 && f == 3.0);
+}
+//== ac_float_prefix_value P0563 P0564 P0565
+int main(void)
+{
+    float f;
+    float g;
+    f = 2.0;
+    g = --f;
+    return !(g == 1.0 && f == 1.0);
+}
+//== ac_float_param_first P0342 P0596 P0604 P0957 P1061
+int g(float a, int b)
+{
+    return b + (a == 1.0);
+}
+int main(void)
+{
+    return !(g(1.0, 6) == 7);
+}
+//== ac_float_params_two P0342 P0596 P0604 P1078
+float add(float a, float b)
+{
+    a = a + b;
+    return a;
+}
+int main(void)
+{
+    float x;
+    x = 2.0;
+    return !(add(x, 3.0) == 5.0 && x == 2.0);
+}
+//== ac_null_macro P0317 P0318 P0319 may
+#include <c48.h>
+int main(void)
+{
+    int *p;
+    p = NULL;
+    return !(p == 0 && NULL == 0);
+}
+//== ac_neg_32768_int P0146 P0477
+int x = -32768;
+int main(void)
+{
+    return !(x < 0 && x == (int)0x8000u);
+}
+//== ac_void_pointer_init P0400 P0403
+int g;
+void *vp = &g;
+int main(void)
+{
+    int *p;
+    p = vp;
+    return !(p == &g);
+}
+//== ac_string_sequence_init P0178 P0407 P1028
+char *p = "ab" "cd";
+char t[] = "ab" "cd";
+int main(void)
+{
+    return !(p[3] == 'd' && sizeof(t) == 5);
+}
+//== ac_triple_pointer P0240 P0307
+int main(void)
+{
+    char c;
+    char *p;
+    char **pp;
+    char ***ppp;
+    p = &c;
+    pp = &p;
+    ppp = &pp;
+    ***ppp = 'z';
+    return !(c == 'z');
+}
+//== ac_long_names_everywhere P0085 P0716
+#define ABCDEFGHIJKLMNO 3
+int abcdefghijklmno(int abcdefghijkl_m)
+{
+    return abcdefghijkl_m + ABCDEFGHIJKLMNO;
+}
+int main(void)
+{
+    return !(abcdefghijklmno(1) == 4);
+}
+//== ac_extern_function_decl P0256 P0263
+extern int f(int a);
+int f(int a)
+{
+    return a;
+}
+int main(void)
+{
+    return f(0);
+}
+//== ac_extern_object_later_def P0247 P0248
+extern int x;
+int main(void)
+{
+    return x;
+}
+int x;
+//== ac_empty_statements P0644 P0646
+int main(void)
+{
+    ;
+    ;
+    for (;;)
+        break;
+    while (0)
+        ;
+    return 0;
+}
+//== ac_main_status_only_proto_then_def P0368 P0880 P1067
+int main(void);
+int main(void)
+{
+    return 0;
+}
+//== ac_static_function_proto P0257 P0262
+static int f(void);
+int main(void)
+{
+    return f();
+}
+static int f(void)
+{
+    return 0;
+}
+//== ac_cast_constant_expressions P0413 P0565
+char c[(int)2.5 + (unsigned char)257];
+int main(void)
+{
+    return !(sizeof(c) == 3);
+}
+//== ac_macro_in_array_bound P0410 P0901
+#define N 4
+int a[N * 2];
+int main(void)
+{
+    return !(sizeof(a) == 16);
+}
+//== ac_macro_char_and_string P0709 P0901
+#define C 'x'
+#define S "yz"
+char t[] = S;
+int main(void)
+{
+    return !(C == 120 && t[1] == 'z');
+}
+//== ac_hash_after_comment_line P0700
+/* leading comment */ /* second */ # define A 5
+int main(void)
+{
+    return !(A == 5);
+}
+//== ac_line_comment_hides_hash P0700
+// #define A 1
+int A;
+int main(void)
+{
+    return A;
+}
+//== ac_include_inherits_and_persists P0717 P0728
+#define BASE 1
+#include "t6_inc.h"
+int main(void)
+{
+    return !(INC_A == 2 && inc_fn(2) == 4);
+}
+//== ac_header_after_own_prototype P0734
+int putchar(int c);
+#include <c48.h>
+int main(void)
+{
+    return 0;
+}
+//== ac_header_twice P0732
+#include <c48.h>
+#include <c48.h>
+int main(void)
+{
+    return 0;
+}
+//== ac_redefine_same_tokens P0720
+#define A (1 + 2)
+#define A (1+2)
+#define A ( 1 + 2 )
+int main(void)
+{
+    return !(A == 3);
+}
+//== ac_compare_void_pointer_null P0328 P0531 P0532
+int main(void)
+{
+    void *v;
+    int x;
+    int *p;
+    v = &x;
+    p = &x;
+    return !(v == p && p == v && v != 0);
+}
+//== ac_pointer_one_past P0535 P0542
+int main(void)
+{
+    int a[3];
+    int *p;
+    int n;
+    n = 0;
+    for (p = a; p < a + 3; p++)
+        n++;
+    return !(n == 3 && p == &a[2] + 1);
+}
+//== ac_sizeof_parenthesized_type_pointer P0577 P1024
+int main(void)
+{
+    return !(sizeof(unsigned char **) == 2 && sizeof(float *) == 2);
+}
+//== ac_unsigned_char_array_from_string P0386
+unsigned char u[] = "ab";
+int main(void)
+{
+    return !(sizeof(u) == 3 && u[0] == 'a');
+}
+//== ac_unsigned_char_array_from_string_local P0386 P0382
+int main(void)
+{
+    char t[4] = "ab";
+    return !(t[1] == 'b' && t[2] == 0 && t[3] == 0);
+}
+//== ac_local_array_initializer P0375 P0378 P0382
+int main(void)
+{
+    int a[3] = { 1, 2 };
+    return !(a[0] == 1 && a[2] == 0);
+}
+//== ac_pointer_param_void P1025
+int f(void *p)
+{
+    return p == 0;
+}
+int main(void)
+{
+    return !f(0);
+}
+//== ac_argv_repeated_index P0241 P0868 P1051
+int main(int argc, char **argv)
+{
+    return !(argv[0][0] != 0 && argc >= 1);
+}
+//== ac_return_conversion P0694 P0549 P0551
+int f(void)
+{
+    return 3.75;
+}
+float g(void)
+{
+    return 7;
+}
+char h(void)
+{
+    return 513;
+}
+int main(void)
+{
+    return !(f() == 3 && g() == 7.0 && h() == 1);
+}
+//== ac_assign_null_constant_expression P0315 P0555
+int main(void)
+{
+    int *p;
+    char *q;
+    p = 0;
+    q = 2 * 3 - 6;
+    return !(p == 0 && q == 0);
+}
+//== ac_empty_translation_unit_with_main_only P0769 P1066
+/* only comments and main */
+int main(void) { return 0; }
+//== ac_assembler_like_names P0277 P0287
+int hl;
+int ld;
+int sp;
+int ix;
+int af(void)
+{
+    return 1;
+}
+int jp(int a)
+{
+    return a;
+}
+int main(void)
+{
+    hl = 1;
+    ld = 2;
+    sp = 3;
+    ix = 4;
+    return !(hl + ld + sp + ix + af() + jp(5) == 16);
+}
+//== ac_spec_examples P0245 P0299 P0377 P0379 P0646 P0710
+#define SIZE 10
+#define MASK (1 << 4)
+#define HALF .5
+#define NAME "zx-ux"
+int x;
+int x2, y;
+unsigned int mask;
+char *p;
+int values[10];
+char bytes[16];
+float samples[4];
+char *names[8];
+int a[3] = { 1, 2, 3 };
+int b[4] = { 1, 2, };
+int function(void)
+{
+    return 5;
+}
+int main(void)
+{
+    int i;
+    x = function();
+    i = 0;
+    i++;
+    ;
+    return !(x == 5 && b[3] == 0 && sizeof(samples) == 20 && sizeof(names) == 16 && SIZE == 10 && MASK == 16 && i == 1);
+}
+//== ac_include_with_c48h P1055 P0727
+#include "t6_c48.h"
+int main(void)
+{
+    return !(strlen("ab") == 2u);
+}
+//== ac_float_copy P0552
+int main(void)
+{
+    float a;
+    float b;
+    unsigned char *x;
+    unsigned char *y;
+    void *t;
+    int i;
+    int same;
+    a = 0.1;
+    b = a;
+    t = &a;
+    x = t;
+    t = &b;
+    y = t;
+    same = 1;
+    for (i = 0; i < 5; i++)
+        if (x[i] != y[i])
+            same = 0;
+    return !same;
+}

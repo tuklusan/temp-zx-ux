@@ -1,0 +1,223 @@
+// n4_pp.cases - C48 negative corpus: preprocessing directives, macros,
+// local includes and the built-in header (spec sections 10.1, 70-75, 87,
+// 93).  Format as in n1_lex.cases; every case must be rejected.  The
+// suite's .h files (t6_inc.h, t6_twice.h, t6_nest.h) are next to each case.
+//== pp_undef P0703 P0739 P0740 P0838
+#define A 1
+#undef A
+int main(void) { return 0; }
+//== pp_if P0739 P0740 P0838
+#if 1
+#endif
+int main(void) { return 0; }
+//== pp_ifdef P0739 P0740 P0838
+#ifdef A
+#endif
+int main(void) { return 0; }
+//== pp_ifndef P0739 P0740 P0838
+#ifndef A
+#endif
+int main(void) { return 0; }
+//== pp_elif P0739 P0740 P0838
+#elif 1
+int main(void) { return 0; }
+//== pp_else P0739 P0740 P0838
+#else
+int main(void) { return 0; }
+//== pp_endif P0739 P0740 P0838
+#endif
+int main(void) { return 0; }
+//== pp_error P0739 P0740 P0838
+#error stop
+int main(void) { return 0; }
+//== pp_line P0739 P0740 P0838
+#line 10
+int main(void) { return 0; }
+//== pp_pragma P0739 P0740 P0838
+#pragma once
+int main(void) { return 0; }
+//== pp_unknown P0703 P0742
+#foo
+int main(void) { return 0; }
+//== pp_upper_define P0700 P0742
+#DEFINE A 1
+int main(void) { return 0; }
+//== pp_upper_include P0700 P0742
+#Include <c48.h>
+int main(void) { return 0; }
+//== pp_null_directive P0703
+#
+int main(void) { return 0; }
+//== pp_function_like P0708 P0741 diag=function-like
+#define F(x) 5
+int main(void) { return 0; }
+//== pp_function_like_empty P0708 P0741 diag=function-like
+#define F() 5
+int main(void) { return 0; }
+//== pp_variadic P0741
+#define F(...) 5
+int main(void) { return 0; }
+//== pp_no_space_after_define P0708
+#defineA 1
+int main(void) { return 0; }
+//== pp_no_replacement P0708 P0709
+#define A
+int main(void) { return 0; }
+//== pp_comment_only_replacement P0709
+#define A /* nothing */
+int main(void) { return 0; }
+//== pp_no_space_before_value P0708
+#define A"x"
+int main(void) { return 0; }
+//== pp_keyword_type P0709 P0711
+#define T int
+int main(void) { return 0; }
+//== pp_statement P0711
+#define S return 0;
+int main(void) { S }
+//== pp_fragment P0711
+#define P (1 +
+int main(void) { return P 2); }
+//== pp_declaration P0711
+#define D int x
+int main(void) { return 0; }
+//== pp_identifier_replacement P0709 P0718
+int y;
+#define A y
+int main(void) { return 0; }
+//== pp_assignment_replacement P0709 P0412
+int y;
+#define A (y = 1)
+int main(void) { return 0; }
+//== pp_call_replacement P0709
+int g(void) { return 1; }
+#define A g()
+int main(void) { return 0; }
+//== pp_forward P0718 P0719 P0902 P0903
+#define B (A + 1)
+#define A 2
+int main(void) { return 0; }
+//== pp_self P0719 P0902
+#define A (A + 1)
+int main(void) { return 0; }
+//== pp_self_plain P0719
+#define A A
+int main(void) { return 0; }
+//== pp_mutual P0719 P0902 P0903
+#define A B
+#define B A
+int main(void) { return 0; }
+//== pp_redefine_different P0720 P0902
+#define A 1
+#define A 2
+int main(void) { return 0; }
+//== pp_redefine_expanded_different P0720
+#define ONE 1
+#define A ONE
+#define A 2
+int main(void) { return 0; }
+//== pp_name_keyword P0720
+#define int 3
+int main(void) { return 0; }
+//== pp_name_reserved P0720
+#define const 3
+int main(void) { return 0; }
+//== pp_name_double_underscore P0116 P0720
+#define __X 3
+int main(void) { return 0; }
+//== pp_name_start P0116 P0720
+#define _start 3
+int main(void) { return 0; }
+//== pp_name_sizeof P0720
+#define sizeof 2
+int main(void) { return 0; }
+//== pp_token_paste P0741
+#define A 1 ## 2
+int main(void) { return 0; }
+//== pp_stringify P0741
+#define A #x
+int main(void) { return 0; }
+//== pp_continuation P0701 P0741
+#define A 1 + \
+2
+int main(void) { return 0; }
+//== pp_comment_crosses_line P0701
+#define A 1 /* crosses
+the end of the directive */
+int main(void) { return 0; }
+//== pp_extra_after_replacement P0712
+#define A 1 2
+int main(void) { return 0; }
+//== pp_predefined_file P0741
+int main(void) { char *s; s = __FILE__; return 0; }
+//== pp_predefined_line P0741
+int main(void) { return __LINE__; }
+//== pp_predefined_stdc P0741
+int main(void) { return __STDC__; }
+//== pp_hash_after_code P0700 P0703
+int x; #define A 1
+int main(void) { return 0; }
+//== pp_include_missing_operand P0742
+#include
+int main(void) { return 0; }
+//== pp_include_two_operands P0742
+#include "t6_twice.h" "t6_twice.h"
+int main(void) { return 0; }
+//== pp_include_trailing_token P0728 P0742 P0903
+#include "t6_twice.h" int
+int main(void) { return 0; }
+//== pp_include_trailing_angle P0742 P0903
+#include <c48.h> extra
+int main(void) { return 0; }
+//== pp_include_macro_operand P0724 P0742 P0902
+#define HDR "t6_twice.h"
+#include HDR
+int main(void) { return 0; }
+//== pp_include_not_found P0777
+#include "no_such_file.h"
+int main(void) { return 0; }
+//== pp_include_case P0903
+#include "T6_twice.h"
+int main(void) { return 0; }
+//== pp_include_nested P0727 P0741 P0903
+#include "t6_nest.h"
+int main(void) { return 0; }
+//== pp_include_unterminated P0742
+#include "t6_twice.h
+int main(void) { return 0; }
+//== pp_angle_other P0732 P0903
+#include <stdio.h>
+int main(void) { return 0; }
+//== pp_angle_local_name P0732
+#include <t6_twice.h>
+int main(void) { return 0; }
+//== pp_angle_c48_spaced P0732
+#include < c48.h >
+int main(void) { return 0; }
+//== pp_include_twice_definition P0729
+#define BASE 1
+#include "t6_inc.h"
+#include "t6_inc.h"
+int main(void) { return 0; }
+//== hd_conflicting_prototype P0734 P0903
+int putchar(float c);
+#include <c48.h>
+int main(void) { return 0; }
+//== hd_conflicting_after P0734
+#include <c48.h>
+int strlen(char *s);
+int main(void) { return 0; }
+//== hd_object_collides P0734
+int puts;
+#include <c48.h>
+int main(void) { return 0; }
+//== hd_macro_hides_function P0734
+#define putchar 1
+#include <c48.h>
+int main(void) { return 0; }
+//== hd_no_printf P1043
+#include <c48.h>
+int main(void) { printf("x"); return 0; }
+//== pp_name_16_chars P0085 P0087 P0716
+#define ABCDEFGHIJKLMNOP 1
+int main(void) { return 0; }

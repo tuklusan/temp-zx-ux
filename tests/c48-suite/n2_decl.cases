@@ -1,0 +1,385 @@
+// n2_decl.cases - C48 negative corpus: reserved words, types, declarators,
+// declarations, storage classes, scope, linkage, arrays, initializers,
+// function declarations and main (spec sections 9-10.1, 18-37, 76, 87, 91,
+// 92).  Format as in n1_lex.cases; every case must be rejected.
+//== kw_auto P0107 P0108 P0111 P0112 P0838 P0776 P0787 diag=unsupported
+int auto; int main(void) { return 0; }
+//== kw_case P0108 P0111 P0112 P0838 P0776 P0787 diag=unsupported
+int case; int main(void) { return 0; }
+//== kw_const P0108 P0111 P0112 P0838 P0776 P0787 P0736 diag=unsupported
+int const; int main(void) { return 0; }
+//== kw_default P0108 P0111 P0112 P0838 P0776 P0787 diag=unsupported
+int default; int main(void) { return 0; }
+//== kw_double P0108 P0111 P0112 P0838 P0776 P0787 diag=unsupported
+int double; int main(void) { return 0; }
+//== kw_enum P0108 P0111 P0112 P0838 P0776 P0787 diag=unsupported
+int enum; int main(void) { return 0; }
+//== kw_goto P0108 P0111 P0112 P0838 P0776 P0787 diag=unsupported
+int goto; int main(void) { return 0; }
+//== kw_long P0108 P0111 P0112 P0838 P0776 P0787 diag=unsupported
+int long; int main(void) { return 0; }
+//== kw_register P0108 P0111 P0112 P0838 P0776 P0787 diag=unsupported
+int register; int main(void) { return 0; }
+//== kw_signed P0108 P0111 P0112 P0838 P0776 P0787 diag=unsupported
+int signed; int main(void) { return 0; }
+//== kw_struct P0108 P0111 P0112 P0838 P0776 P0787 diag=unsupported
+int struct; int main(void) { return 0; }
+//== kw_switch P0108 P0111 P0112 P0838 P0776 P0787 diag=unsupported
+int switch; int main(void) { return 0; }
+//== kw_typedef P0108 P0111 P0112 P0838 P0776 P0787 diag=unsupported
+int typedef; int main(void) { return 0; }
+//== kw_union P0108 P0111 P0112 P0838 P0776 P0787 diag=unsupported
+int union; int main(void) { return 0; }
+//== kw_volatile P0108 P0111 P0112 P0838 P0776 P0787 diag=unsupported
+int volatile; int main(void) { return 0; }
+//== kw_inline P0109 P0110 P0111 P0112 P0838 P0776 P0787 diag=unsupported
+int inline; int main(void) { return 0; }
+//== kw_restrict P0109 P0110 P0111 P0112 P0838 P0776 P0787 diag=unsupported
+int restrict; int main(void) { return 0; }
+//== kw__Alignas P0110 P0111 P0112 P0838 P0776 P0787 diag=unsupported
+int _Alignas; int main(void) { return 0; }
+//== kw__Alignof P0110 P0111 P0112 P0838 P0776 P0787 diag=unsupported
+int _Alignof; int main(void) { return 0; }
+//== kw__Atomic P0110 P0111 P0112 P0838 P0776 P0787 diag=unsupported
+int _Atomic; int main(void) { return 0; }
+//== kw__Bool P0110 P0111 P0112 P0838 P0776 P0787 diag=unsupported
+int _Bool; int main(void) { return 0; }
+//== kw__Complex P0110 P0111 P0112 P0838 P0776 P0787 diag=unsupported
+int _Complex; int main(void) { return 0; }
+//== kw__Generic P0110 P0111 P0112 P0838 P0776 P0787 diag=unsupported
+int _Generic; int main(void) { return 0; }
+//== kw__Imaginary P0110 P0111 P0112 P0838 P0776 P0787 diag=unsupported
+int _Imaginary; int main(void) { return 0; }
+//== kw__Noreturn P0110 P0111 P0112 P0838 P0776 P0787 diag=unsupported
+int _Noreturn; int main(void) { return 0; }
+//== kw__Static_assert P0110 P0111 P0112 P0838 P0776 P0787 diag=unsupported
+int _Static_assert; int main(void) { return 0; }
+//== kw__Thread_local P0110 P0111 P0112 P0838 P0776 P0787 diag=unsupported
+int _Thread_local; int main(void) { return 0; }
+//== kw_const_qualifier P0108 P0111 P0928 P0931 P0776 P0787 diag=unsupported
+const int x; int main(void) { return 0; }
+//== kw_volatile_local P0108 P0111 P0776 P0787 diag=unsupported
+int main(void) { volatile int x; return 0; }
+//== kw_goto_stmt P0111 P0632 P0776 P0787 diag=unsupported
+int main(void) { goto out; return 0; }
+//== kw_as_param_name P0112 P0776 P0787
+int f(int long) { return 0; } int main(void) { return 0; }
+//== kw_as_function P0112 P0776 P0787
+int signed(void) { return 0; } int main(void) { return 0; }
+//== kw_supported_as_name P0099 P0100 P0776 P0787
+int while; int main(void) { return 0; }
+//== res_double_underscore P0116
+int __mine; int main(void) { return 0; }
+//== res_double_underscore_fn P0116
+int __helper(void) { return 0; } int main(void) { return 0; }
+//== res_double_underscore_local P0116
+int main(void) { int __x; return 0; }
+//== res_start P0116 P0117
+int _start; int main(void) { return 0; }
+//== res_start_fn P0116 P0117
+void _start(void) { } int main(void) { return 0; }
+//== res_heap_start P0117
+int __heap_start; int main(void) { return 0; }
+//== res_fcmp P0117 P1044
+int __fcmp(void) { return 0; } int main(void) { return 0; }
+//== ty_signed P0214 P0839 P0104 P0213
+signed x; int main(void) { return 0; }
+//== ty_signed_int P0214 P0839 P0213
+signed int x; int main(void) { return 0; }
+//== ty_signed_short P0214 P0839 P0213
+signed short x; int main(void) { return 0; }
+//== ty_signed_char P0214 P0217 P0839 P0213
+signed char x; int main(void) { return 0; }
+//== ty_short_int P0214 P0839 P0213
+short int x; int main(void) { return 0; }
+//== ty_unsigned_alone P0102 P0214 P0839 P0213
+unsigned x; int main(void) { return 0; }
+//== ty_unsigned_short_int P0214 P0839 P0213
+unsigned short int x; int main(void) { return 0; }
+//== ty_unsigned_long P0214 P0839 P0213
+unsigned long x; int main(void) { return 0; }
+//== ty_long_int P0214 P0839 P0213
+long int x; int main(void) { return 0; }
+//== ty_long P0214 P0839 P0213
+long x; int main(void) { return 0; }
+//== ty_long_long P0746 P0745 P0747 P0787
+long long x; int main(void) { return 0; }
+//== ty_double P0214 P0839 P0213
+double x; int main(void) { return 0; }
+//== ty_unsigned_float P0102
+unsigned float x; int main(void) { return 0; }
+//== ty_char_unsigned P0102 P0211
+char unsigned x; int main(void) { return 0; }
+//== ty_int_int P0244
+int int x; int main(void) { return 0; }
+//== ty_unsigned_void P0102
+unsigned void x; int main(void) { return 0; }
+//== ty_implicit_int P0246
+x; int main(void) { return 0; }
+//== ty_implicit_int_fn P0246 P0363
+f(void) { return 0; } int main(void) { return 0; }
+//== ty_static_only P0244 P0246
+static x; int main(void) { return 0; }
+//== ty_void_object P0223 P1092
+void x; int main(void) { return 0; }
+//== ty_void_local P0223
+int main(void) { void x; return 0; }
+//== ty_void_array P0298
+void a[2]; int main(void) { return 0; }
+//== ty_struct P0746 P0745 P0747 P0787
+struct s { int a; }; int main(void) { return 0; }
+//== ty_enum P0746 P0745 P0747 P0787
+enum e { A }; int main(void) { return 0; }
+//== ty_typedef P0746 P0745 P0747 P0787
+typedef int T; int main(void) { return 0; }
+//== ty_bitfield P0746 P0745 P0747 P0787
+int main(void) { int a : 3; return 0; }
+//== dc_ptr_to_array P0239 P0306 P0877 P0235
+char (*p)[8]; int main(void) { return 0; }
+//== dc_fn_pointer P0239 P0306 P0871 P0877 P0235
+char (*fp)(void); int main(void) { return 0; }
+//== dc_parenthesized P0239 P0235
+int (x); int main(void) { return 0; }
+//== dc_array_2d P0241 P0298 P0746 P0872 P0235
+int a[2][3]; int main(void) { return 0; }
+//== dc_array_2d_local P0241 P0872 P0235
+int main(void) { char a[2][2]; return 0; }
+//== dc_array_of_functions P0239 P0235
+int f[2](void); int main(void) { return 0; }
+//== dc_function_returning_array P0359 P0239 P0235
+int f(void)[3]; int main(void) { return 0; }
+//== dc_function_returning_function P0360 P0239 P0235
+int f(void)(void); int main(void) { return 0; }
+//== ar_zero P0300
+int a[0]; int main(void) { return 0; }
+//== ar_negative P0300
+int a[-1]; int main(void) { return 0; }
+//== ar_unsigned_wrap P0300 P0303
+int a[0u - 1u]; int main(void) { return 0; }
+//== ar_vla P0300 P0746
+int main(void) { int n; int a[n]; n = 1; return 0; }
+//== ar_nonconst_global P0300 P0412
+int n = 3; int a[n]; int main(void) { return 0; }
+//== ar_float_bound P0300
+int a[2.0]; int main(void) { return 0; }
+//== ar_no_bound P0300
+int a[]; int main(void) { return 0; }
+//== ar_no_bound_local P0300
+int main(void) { int a[]; return 0; }
+//== ar_too_big_int P0303 P0582
+int a[32768]; int main(void) { return 0; }
+//== ar_too_big_float P0303
+float a[13108]; int main(void) { return 0; }
+//== ar_too_big_ushort P0303
+unsigned short a[40000u]; int main(void) { return 0; }
+//== ar_param P1025
+int f(int a[]) { return 0; } int main(void) { return 0; }
+//== ar_param_bound P1025
+int f(int a[4]) { return 0; } int main(void) { return 0; }
+//== ar_assign P0301 P0455 P0559
+int a[2]; int b[2]; int main(void) { a = b; return 0; }
+//== ar_increment P0455 P0566
+int a[2]; int main(void) { a++; return 0; }
+//== sc_extern_init P0261
+extern int x = 1; int main(void) { return 0; }
+//== sc_block_static P0258 P0285
+int main(void) { static int x; return 0; }
+//== sc_block_extern P0258 P0285
+int main(void) { extern int x; return 0; }
+//== sc_auto P0259 P0260
+int main(void) { auto int x; return 0; }
+//== sc_register P0260
+int main(void) { register int x; return 0; }
+//== sc_extern_fn_def P0263 P1025
+extern int f(void) { return 0; } int main(void) { return 0; }
+//== sc_static_extern P0248 P0284 P0878 P0879
+static int x; extern int x; int main(void) { return 0; }
+//== sc_extern_static P0248 P0284 P0878 P0879
+extern int x; static int x; int main(void) { return 0; }
+//== sc_int_static P0248 P0284 P0879
+int x; static int x; int main(void) { return 0; }
+//== sc_static_fn_extern P0284 P0878
+static int f(void); extern int f(void); int main(void) { return 0; }
+//== sc_fn_static_after P0284 P0878
+int f(void); static int f(void) { return 0; } int main(void) { return 0; }
+//== sc_two_static P0284
+static int f(int); int f(int x) { return x; } int main(void) { return f(0); }
+//== dd_two_definitions P0247 P0248 P0878 P0879
+int x; int x; int main(void) { return 0; }
+//== dd_init_twice P0247 P0248
+int x = 1; int x = 2; int main(void) { return 0; }
+//== dd_two_static P0247
+static int x; static int x; int main(void) { return 0; }
+//== dd_function_twice P0289 P0878
+int f(void) { return 0; } int f(void) { return 1; } int main(void) { return 0; }
+//== dd_local_twice P0272
+int main(void) { int x; int x; return 0; }
+//== dd_param_twice P0272
+int f(int x, int x) { return 0; } int main(void) { return 0; }
+//== dd_param_redeclared P0278 P0880
+int f(int x) { int x; x = 1; return x; } int main(void) { return 0; }
+//== dd_kind_conflict P0284 P0878 P0276
+int f; int f(void); int main(void) { return 0; }
+//== dd_kind_conflict_2 P0284 P0878 P0276
+int f(void); int f; int main(void) { return 0; }
+//== dd_type_conflict P0284 P0878
+extern char x; int x; int main(void) { return 0; }
+//== dd_type_conflict_ptr P0282 P0284
+extern int *p; extern void *p; int main(void) { return 0; }
+//== dd_short_int_obj P0281 P0284
+extern short x; int x; int main(void) { return 0; }
+//== dd_array_bound_conflict P0284
+extern int a[3]; int a[4]; int main(void) { return 0; }
+//== pr_char_uchar P0274 P0281 P0283 P0876 P1092
+int f(char a); int f(unsigned char a) { return 0; } int main(void) { return 0; }
+//== pr_short_int P0274 P0281 P0283 P0876
+int f(short a); int f(int a) { return 0; } int main(void) { return 0; }
+//== pr_ushort_uint P0274 P0281 P0283 P0876
+int f(unsigned short a); int f(unsigned int a) { return 0; } int main(void) { return 0; }
+//== pr_return_short_int P0274 P0283 P0876
+short f(void); int f(void) { return 0; } int main(void) { return 0; }
+//== pr_ptr_void P0274 P0282 P0876
+int f(int *p); int f(void *p) { return 0; } int main(void) { return 0; }
+//== pr_ptr_deep P0282 P0876
+int f(char **p); int f(char *p) { return 0; } int main(void) { return 0; }
+//== pr_ptr_uchar P0282 P0876
+int f(char *p); int f(unsigned char *p) { return 0; } int main(void) { return 0; }
+//== pr_count P0274 P0283
+int f(int a); int f(int a, int b) { return 0; } int main(void) { return 0; }
+//== pr_repeat_conflict P0273 P0283
+int f(int a); int f(float a); int main(void) { return 0; }
+//== pr_void_fn_int P0283
+void f(void); int f(void) { return 0; } int main(void) { return 0; }
+//== fn_old_style P0336 P0339 P0340 P0341 P0878
+int f(); int main(void) { return 0; }
+//== fn_old_style_def P0336 P0341
+int f() { return 0; } int main(void) { return 0; }
+//== fn_kr_params P0336
+int f(a) int a; { return a; } int main(void) { return 0; }
+//== fn_variadic P0343 P0344 P0746
+int f(int a, ...); int main(void) { return 0; }
+//== fn_unnamed_param_def P0345 P1025
+int f(int) { return 0; } int main(void) { return 0; }
+//== fn_void_param_named P1025
+int f(void x) { return 0; } int main(void) { return 0; }
+//== fn_void_and_int P1025
+int f(void, int a); int main(void) { return 0; }
+//== fn_param_two_types P0342
+int f(int float a); int main(void) { return 0; }
+//== fn_nested_def P0275
+int main(void) { int g(void) { return 1; } return 0; }
+//== fn_block_decl P0285 P0878
+int main(void) { int g(void); return 0; }
+//== fn_undeclared_call P0362 P0363 P0597 P0878
+int main(void) { return g(1); }
+//== fn_call_before_def P0362 P0363
+int main(void) { return g(); } int g(void) { return 0; }
+//== fn_init_declarator P0381
+int f(void) = 0; int main(void) { return 0; }
+//== mn_void P0366 P0368 P0878
+void main(void) { }
+//== mn_empty_params P0366 P0368
+int main() { return 0; }
+//== mn_static P0366 P0368 P0878
+static int main(void) { return 0; }
+//== mn_extern_def P0368
+extern int main(void) { return 0; }
+//== mn_one_param P0366 P0368 P0878
+int main(int argc) { return 0; }
+//== mn_wrong_argv P0366 P0368
+int main(int argc, char *argv) { return 0; }
+//== mn_three_params P0366 P0368
+int main(int argc, char **argv, char **envp) { return 0; }
+//== mn_char_return P0366 P0368
+char main(void) { return 0; }
+//== mn_unsigned_return P0366 P0368
+unsigned int main(void) { return 0; }
+//== mn_unsigned_argc P0366
+int main(unsigned int argc, char **argv) { return 0; }
+//== mn_object P0366 P0880 P1067
+int main;
+//== mn_object_static P0366
+static int main = 0;
+//== mn_proto_conflict P0366 P0368
+int main(void); int main(int argc, char **argv) { return 0; }
+//== mn_static_proto P0366 P0368
+static int main(void); int main(void) { return 0; }
+//== lc_decl_after_stmt P0291 P0293 P0639
+int main(void) { int x; x = 1; int y; return 0; }
+//== lc_for_decl P0294 P0676
+int main(void) { for (int i = 0; i < 2; i++) ; return 0; }
+//== in_designated P0380 P0428 P0430 P0746 P0897 P0429 P0431
+int a[4] = { [2] = 7 }; int main(void) { return 0; }
+//== in_nested_braces P0380 P0898
+int a[2] = { { 1 }, { 2 } }; int main(void) { return 0; }
+//== in_empty_braces P0381
+int a[2] = { }; int main(void) { return 0; }
+//== in_too_many P0378
+int a[2] = { 1, 2, 3 }; int main(void) { return 0; }
+//== in_string_too_long P0391 P0392 P0393 P0394 P0395 P0896
+char t[3] = "abc"; int main(void) { return 0; }
+//== in_string_too_long_local P0391 P0896
+int main(void) { char t[2] = "ab"; return 0; }
+//== in_string_int_array P1028
+int a[4] = "abc"; int main(void) { return 0; }
+//== in_scalar_braces P1028
+int x = { 1 }; int main(void) { return 0; }
+//== in_call P0376 P0377 P0419
+int g(void) { return 1; } int x = g(); int main(void) { return 0; }
+//== in_object_read P0376 P0412 P1036
+int y = 1; int x = y; int main(void) { return 0; }
+//== in_local_object_read P0376
+int main(void) { int a; int b = a; a = 1; return b; }
+//== in_local_call P0376
+int g(void) { return 1; } int main(void) { int b = g(); return b; }
+//== in_assignment P0412
+int y; int x = (y = 1); int main(void) { return 0; }
+//== in_increment P0412
+int y; int x = y++; int main(void) { return 0; }
+//== in_library_fn P0419
+float sqrt(float x); float r = sqrt(4.0); int main(void) { return 0; }
+//== in_address_of_local P0403
+int main(void) { int a; int *p = &a; return 0; }
+//== pi_nonzero_int P0320 P0405 P0557
+int *p = 5; int main(void) { return 0; }
+//== pi_nonzero_expr P0320 P0405
+int *p = 2 - 1; int main(void) { return 0; }
+//== pi_incompatible P0403 P0556
+char c; int *p = &c; int main(void) { return 0; }
+//== pi_string_uchar P0407
+unsigned char *p = "abc"; int main(void) { return 0; }
+//== pi_string_int P0407
+int *p = "abc"; int main(void) { return 0; }
+//== pi_float P0558
+int *p = 1.0; int main(void) { return 0; }
+//== pi_cast P0406 P0571
+int *p = (int *)0; int main(void) { return 0; }
+//== pi_address_times P0404
+int a[4]; int *p = &a[0] * 2; int main(void) { return 0; }
+//== pi_address_of_function P0456
+int g(void) { return 0; } int main(void) { int *p; p = &g; return 0; }
+//== fl_init_pointer P0383 P0558
+int x; float f = &x; int main(void) { return 0; }
+//== ce_div_zero P0414 P1036
+int x = 1 / 0; int main(void) { return 0; }
+//== ce_rem_zero P0414
+int x = 1 % 0; int main(void) { return 0; }
+//== ce_div_zero_bound P0414
+int a[2 / 0]; int main(void) { return 0; }
+//== ce_float_overflow P0414 P0419
+float f = 1e30 * 1e30; int main(void) { return 0; }
+//== ce_float_div_zero P0414 P0419
+float f = 1.0 / 0.0; int main(void) { return 0; }
+//== ce_conv_range P0414 P0574
+int x = (int)70000.0; int main(void) { return 0; }
+//== ce_conv_negative_char P0481 P0574
+char c = (char)-1.0; int main(void) { return 0; }
+//== ce_conv_implicit_range P0574
+unsigned int u = -1.0; int main(void) { return 0; }
+//== ce_local_conv_range P0574
+int main(void) { int x = 40000.0; return x; }
+//== fn_callconv_syntax P0609 P0610
+int stdcall f(void); int main(void) { return 0; }
+//== kw_const_after_header P0932 P0928 P0933 diag=unsupported
+#include <c48.h>
+const int x; int main(void) { return 0; }

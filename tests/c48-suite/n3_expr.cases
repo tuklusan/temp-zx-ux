@@ -1,0 +1,238 @@
+// n3_expr.cases - C48 negative corpus: expressions, operand domains,
+// lvalues, pointers, void, casts, sizeof, calls and statements (spec
+// sections 25-28, 38-69, 87, 89, 90; Appendices A and D).  Format as in
+// n1_lex.cases; every case must be rejected.
+//== pt_address_of_array P0302 P0866 P1050
+int a[2]; int main(void) { int *p; p = &a; return 0; }
+//== pt_address_of_array_local P0302 P0866
+int main(void) { char a[2]; char *p; p = &a; return 0; }
+//== pt_address_of_function P0456 P0871
+int g(void) { return 0; } int main(void) { void *p; p = &g; return 0; }
+//== pt_address_of_rvalue P0456
+int main(void) { int *p; int i; i = 1; p = &(i + 1); return 0; }
+//== pt_address_of_literal P0456
+int main(void) { int *p; p = &5; return 0; }
+//== pt_void_deref P0308 P0327 P0869
+int main(void) { void *p; int x; p = &x; return *p; }
+//== pt_void_arith P0308 P0327 P0869
+int main(void) { void *p; int x; p = &x; p = p + 1; return 0; }
+//== pt_void_index P0308 P0327 P0869
+int main(void) { void *p; int x; p = &x; return p[0]; }
+//== pt_void_increment P0308 P0566 P0869
+int main(void) { void *p; int x; p = &x; p++; return 0; }
+//== pt_void_minus P0308 P0327
+int main(void) { void *p; void *q; int x; p = &x; q = p; return p - q; }
+//== pt_cast_int_ptr P0321 P0571 P0870 P0776
+int main(void) { int *p; p = (int *)1; return 0; }
+//== pt_cast_ptr_int P0321 P0571 P0870 P0776
+int main(void) { int x; int i; i = (int)&x; return 0; }
+//== pt_cast_ptr_ptr P0406 P0571 P0870 P0776
+int main(void) { int x; char *c; c = (char *)&x; return 0; }
+//== pt_cast_void_ptr P0571 P0776
+int main(void) { int x; void *v; v = (void *)&x; return 0; }
+//== pt_cast_float_ptr P0571 P0870 P0776
+int main(void) { int x; float f; f = (float)&x; return 0; }
+//== pt_cast_null P0321 P0571 P0776
+int main(void) { int *p; p = (int *)0; return 0; }
+//== pt_incompatible_assign P0556
+int main(void) { int *ip; char *cp; char c; cp = &c; ip = cp; return 0; }
+//== pt_uchar_char_assign P0281 P0556
+int main(void) { unsigned char *u; char *c; char x; c = &x; u = c; return 0; }
+//== pt_short_int_assign P0281 P0556
+int main(void) { short *s; int *i; int x; i = &x; s = i; return 0; }
+//== pt_ptrptr_assign P0282 P0556
+int main(void) { char **pp; char *p; char c; p = &c; pp = p; return 0; }
+//== pt_int_to_ptr P0320 P0557
+int main(void) { int *p; p = 5; return 0; }
+//== pt_int_var_to_ptr P0320 P0557
+int main(void) { int *p; int z; z = 0; p = z; return 0; }
+//== pt_ptr_to_int P0557
+int main(void) { int x; int i; int *p; p = &x; i = p; return 0; }
+//== pt_float_to_ptr P0558
+int main(void) { int *p; p = 1.5; return 0; }
+//== pt_ptr_to_float P0558
+int main(void) { int x; float f; int *p; p = &x; f = p; return 0; }
+//== pt_ptr_plus_ptr P0309 P0540
+int main(void) { int a[2]; int *p; int *q; p = a; q = a; p = p + q; return 0; }
+//== pt_int_minus_ptr P0309 P0540
+int main(void) { int a[2]; int *p; p = a; p = 1 - p; return 0; }
+//== pt_float_index P0310
+int main(void) { int a[2]; return a[1.0]; }
+//== pt_ptr_index P0310
+int main(void) { int a[2]; int *p; p = a; return a[p]; }
+//== pt_index_commuted P0310 P0543 P0867 P1051
+int main(void) { int a[2]; return 1[a]; }
+//== pt_index_commuted_ptr P0310 P1051
+int main(int argc, char **argv) { return 1[argv][0]; }
+//== pt_minus_incompatible P0309 P0540
+int main(void) { int a[2]; char c[2]; int *p; char *q; p = a; q = c; return p - q; }
+//== pt_relational_void P0535 P1058
+int main(void) { int x; void *p; void *q; p = &x; q = p; return p < q; }
+//== pt_relational_incompatible P0535 P1058
+int main(void) { int x; char c; int *p; char *q; p = &x; q = &c; return p < q; }
+//== pt_relational_int P0535
+int main(void) { int x; int *p; p = &x; return p < 1; }
+//== pt_equal_incompatible P0529 P0530 P1058
+int main(void) { int x; char c; int *p; char *q; p = &x; q = &c; return p == q; }
+//== pt_equal_nonzero_int P0529 P0532
+int main(void) { int x; int *p; p = &x; return p == 1; }
+//== pt_equal_float P0529 P0558
+int main(void) { int x; int *p; p = &x; return p == 0.0; }
+//== pt_unary_plus P1074
+int main(void) { int x; int *p; p = &x; p = +p; return 0; }
+//== pt_unary_minus P1074
+int main(void) { int x; int *p; p = &x; return -p == 0; }
+//== pt_multiply P1074
+int main(void) { int x; int *p; p = &x; return p * 2 == 0; }
+//== pt_shift P1074
+int main(void) { int x; int *p; p = &x; return (p << 1) == 0; }
+//== pt_bitand P1074 P0504
+int main(void) { int x; int *p; p = &x; return (p & 1) == 0; }
+//== pt_deref_int P0456
+int main(void) { int i; i = 1; return *i; }
+//== pt_function_pointer_call P0593 P0871 P1033
+int g(void) { return 0; } int main(void) { void *p; p = g; return 0; }
+//== pt_function_value P0593 P0871
+int g(void) { return 0; } int main(void) { int x; x = g; return 0; }
+//== op_mod_float P0472 P1074
+int main(void) { float f; f = 1.5; return f % 2; }
+//== op_bitnot_float P0504 P1074
+int main(void) { float f; f = 1.5; return ~f; }
+//== op_shift_float P0499 P1074
+int main(void) { float f; f = 1.5; return f << 1; }
+//== op_shift_float_count P0499
+int main(void) { int i; i = 1; return i << 1.5; }
+//== op_bitand_float P0504 P1074
+int main(void) { float f; f = 1.5; return (f & 1) == 0; }
+//== op_bitor_float P0504
+int main(void) { float f; f = 1.5; return (2 | f) == 0; }
+//== lv_assign_literal P0455 P0547
+int main(void) { int i; 5 = i; return 0; }
+//== lv_assign_expression P0455 P0547
+int main(void) { int i; i = 0; (i + 1) = 2; return 0; }
+//== lv_assign_call P0455
+int g(void) { return 0; } int main(void) { g() = 1; return 0; }
+//== lv_assign_function P0455 P0559
+int g(void) { return 0; } int main(void) { g = 0; return 0; }
+//== lv_assign_assignment P0547 P1073
+int main(void) { int i; int j; (i = 1) = 2; return 0; }
+//== lv_increment_literal P0455 P0566
+int main(void) { return ++5; }
+//== lv_increment_rvalue P0455 P0566
+int main(void) { int i; i = 1; return (i + 1)++; }
+//== lv_increment_call P0566
+int g(void) { return 0; } int main(void) { return g()++; }
+//== lv_increment_postfix P0565 P1073
+int main(void) { int i; i = 1; return (i++)++; }
+//== lv_increment_prefix P0565
+int main(void) { int i; i = 1; return ++(++i); }
+//== lv_increment_string P0566
+int main(void) { return "x"++ == 0; }
+//== lv_string_store P0180 P0455
+int main(void) { "abc"[0] = 'x'; return 0; }
+//== lv_string_deref_store P0180 P0455
+int main(void) { *"abc" = 'x'; return 0; }
+//== lv_cast_assign P1073
+int main(void) { int i; (char)i = 1; return 0; }
+//== lv_sizeof_assign P1073
+int main(void) { int i; sizeof(i) = 1; return 0; }
+//== lv_address_assign P1073
+int main(void) { int i; int *p; &i = p; return 0; }
+//== vd_assign P0634 P0839
+void v(void) { } int main(void) { int x; x = v(); return 0; }
+//== vd_operand P0634 P0839
+void v(void) { } int main(void) { return v() + 1; }
+//== vd_condition_if P0634 P0653 P0839
+void v(void) { } int main(void) { if (v()) return 1; return 0; }
+//== vd_condition_while P0634 P0660
+void v(void) { } int main(void) { while (v()) ; return 0; }
+//== vd_condition_for P0634 P0674
+void v(void) { } int main(void) { for (; v(); ) ; return 0; }
+//== vd_condition_do P0634 P0666
+void v(void) { } int main(void) { do ; while (v()); return 0; }
+//== vd_argument P0634
+void v(void) { } int g(int a) { return a; } int main(void) { return g(v()); }
+//== vd_return_expr P0634 P0693
+void v(void) { } int main(void) { return v(); }
+//== vd_return_in_void P0693
+void v(void) { } void w(void) { return v(); } int main(void) { return 0; }
+//== vd_return_value_in_void P0693
+void w(void) { return 1; } int main(void) { return 0; }
+//== vd_sizeof P0634 P0839
+void v(void) { } int main(void) { return sizeof(v()); }
+//== vd_cast P0634 P0839
+int main(void) { int x; x = 1; (void)x; return 0; }
+//== vd_logical P0634
+void v(void) { } int main(void) { return !v(); }
+//== ca_to_void_ptr_type P0571 P0776
+int main(void) { int x; return sizeof((void *)&x); }
+//== ca_to_array P0581 P0776
+int main(void) { int a[2]; return sizeof((int[2])a); }
+//== ca_unsigned_alone P0214 P0776
+int main(void) { return (unsigned)1; }
+//== ca_to_void P0634 P0776
+int main(void) { return (void)0; }
+//== sz_void P0224 P0581
+int main(void) { return sizeof(void); }
+//== sz_array_type P0581 P0839 P0852
+int main(void) { return sizeof(int[3]); }
+//== sz_function P0581
+int g(void) { return 0; } int main(void) { return sizeof g; }
+//== sz_function_paren P0581
+int main(void) { return sizeof(main); }
+//== sz_signed P0581
+int main(void) { return sizeof(signed int); }
+//== cl_too_few P0594 P0597
+int g(int a, int b) { return a; } int main(void) { return g(1); }
+//== cl_too_many P0594
+int g(int a) { return a; } int main(void) { return g(1, 2); }
+//== cl_args_to_void P0594
+int g(void) { return 0; } int main(void) { return g(1); }
+//== cl_incompatible_ptr_arg P0556
+int g(int *p) { return 0; } int main(void) { char c; return g(&c); }
+//== cl_float_to_ptr_arg P0558
+int g(int *p) { return 0; } int main(void) { return g(1.0); }
+//== cl_nonzero_to_ptr_arg P0557
+int g(int *p) { return 0; } int main(void) { return g(3); }
+//== cl_call_non_function P0593
+int main(void) { int x; x = 1; return x(); }
+//== rt_ptr_from_int P0557 P0694
+int *g(void) { return 1; } int main(void) { return 0; }
+//== rt_incompatible P0556 P0694
+char c; int *g(void) { return &c; } int main(void) { return 0; }
+//== rt_missing_value P0694
+int g(void) { return; } int main(void) { return 0; }
+//== rt_array_assign_value P0301 P0559
+int main(void) { int a[2]; int b[2]; int *p; p = (a = b); return 0; }
+//== st_break_outside P0683
+int main(void) { break; return 0; }
+//== st_continue_outside P0690
+int main(void) { continue; return 0; }
+//== st_break_in_if P0679 P0683
+int main(void) { if (1) break; return 0; }
+//== st_continue_in_block P0686 P0690
+int main(void) { { continue; } return 0; }
+//== st_switch P0633 P0746 P0745 P0747
+int main(void) { int x; x = 1; switch (x) { default: return 0; } return 0; }
+//== st_case P0633
+int main(void) { case 1: return 0; }
+//== st_default P0633
+int main(void) { default: return 0; }
+//== st_goto P0632 P0746 P0745 P0747
+int main(void) { goto end; end: return 0; }
+//== st_label P0631
+int main(void) { here: return 0; }
+//== st_do_no_semicolon P0667
+int main(void) { int i; i = 0; do i++; while (i < 2) return 0; }
+//== st_if_no_parens P0650
+int main(void) { if 1 return 0; return 1; }
+//== st_for_two_clauses P0671
+int main(void) { int i; for (i = 0; i < 2) i++; return 0; }
+//== st_statement_expression P0450 P0028 P0785 P0786 P0787 P0789 P0790 P0447
+int main(void) { int x; x = ({ 1; }); return 0; }
+//== st_compound_literal P0448 P0028 P0785 P0786 P0787 P0789 P0790 P0447
+int main(void) { int *p; p = (int[]){ 1, 2 }; return 0; }
+//== st_generic P0449 P0746 P0028 P0785 P0786 P0787 P0789 P0790 P0447
+int main(void) { return _Generic(1, int: 0); }
+//== st_static_assert P0746 P0028 P0785 P0786 P0787 P0789 P0790 P0447
+_Static_assert(1, "x"); int main(void) { return 0; }

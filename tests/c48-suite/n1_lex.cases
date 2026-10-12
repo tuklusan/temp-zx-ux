@@ -1,0 +1,211 @@
+// n1_lex.cases - C48 negative corpus: source bytes, comments, identifiers,
+// tokens and literals (spec sections 4-17, 87).  Each "//== id P.... "
+// line starts one case; run_suite.py compiles every case on its own and
+// requires rcc to reject it (status 1, "rcc:" diagnostic on stderr, no
+// output file).  <<XX>> stands for the byte with hexadecimal value XX.
+// Options after the paragraphs: diag=REGEX must match the diagnostic.
+//== lex_cr_byte P0044 P0045
+int main(void) { return 0;<<0D>> }
+//== lex_nul_byte P0044 P0045
+int main(void) { return 0; }<<00>>
+//== lex_high_byte P0044 P0045 P0049
+int main(void) { return 0; } /* <<E9>> */
+//== lex_utf8_string P0049 P0050
+int main(void) { char *s; s = "<<C3>><<A9>>"; return 0; }
+//== lex_bom P0048
+<<EF>><<BB>><<BF>>int main(void) { return 0; }
+//== lex_control_byte P0044 P0045
+int main(void) { return<<01>>0; }
+//== lex_form_feed P0044 P0065
+int main(void) { return<<0C>>0; }
+//== lex_vertical_tab P0044 P0065
+int main(void) { return<<0B>>0; }
+//== lex_splice_code P0056 P0057 P0058 P0059 P0060
+int main(void) { return 1 \
++ 2; }
+//== lex_splice_ident P0056 P0058 P0059 P0060
+int ab\
+c; int main(void) { return 0; }
+//== lex_comment_unterminated P0077
+int main(void) { return 0; } /* never closed
+//== lex_comment_nested P0076
+int main(void) { /* outer /* inner */ still comment */ return 0; }
+//== lex_trigraph P0051 P0787
+int main(void) { return '??/0'; }
+//== lex_digraph P0051 P0787
+int main(void) <% return 0; %>
+//== lex_ucn P0051 P0787
+int main(void) { int \u0041; return 0; }
+//== lex_ident_16 P0085 P0087 P0837
+int abcdefghijklmnop; int main(void) { return 0; }
+//== lex_ident_16_local P0087 P0088
+int main(void) { int identifier_longer; return 0; }
+//== lex_ident_long_spec P0837
+int main(void) { int identifier_longer_than_15_visible_characters; return 0; }
+//== lex_ident_dollar P0083 P0132
+int main(void) { int a$b; return 0; }
+//== lex_stray_at P0132
+int main(void) { return @1; }
+//== lex_stray_backquote P0132
+int main(void) { return `1; }
+//== lex_stray_backslash P0132
+int main(void) { return \ 1; }
+//== lex_hash_midline P0132 P0703
+int main(void) { return # 1; }
+//== int_range_dec P0145 P0837 P0836
+int main(void) { return 65536; }
+//== int_range_hex P0145 P0837
+int main(void) { return 0x10000; }
+//== int_range_oct P0145
+int main(void) { return 0200000; }
+//== int_range_unsigned P0155
+int main(void) { return 65536u; }
+//== int_bad_octal8 P0143 P0837
+int main(void) { return 08; }
+//== int_bad_octal9 P0143
+int main(void) { return 019; }
+//== int_hex_no_digit P0143
+int main(void) { return 0x; }
+//== int_suffix_l P0138 P0139 P0837
+int main(void) { return 1L; }
+//== int_suffix_l_lower P0138 P0139
+int main(void) { return 1l; }
+//== int_suffix_ul P0138 P0139 P0837
+int main(void) { return 1UL; }
+//== int_suffix_lu P0139
+int main(void) { return 1lu; }
+//== int_suffix_ll P0139
+int main(void) { return 1LL; }
+//== int_suffix_uLL P0139
+int main(void) { return 1uLL; }
+//== int_suffix_uu P0138
+int main(void) { return 1uu; }
+//== int_binary P0144 P0839
+int main(void) { return 0b101; }
+//== int_binary_upper P0144 P0839
+int main(void) { return 0B1; }
+//== int_digit_separator P0144 P0839
+int main(void) { return 1'000; }
+//== int_identifier_tail P0131 P0837
+int main(void) { int x; x = 123abc; return 0; }
+//== int_suffix_garbage P0131
+int main(void) { return 12_3; }
+//== chr_empty P0170 P0837
+int main(void) { return ''; }
+//== chr_two P0170 P0837
+int main(void) { return 'AB'; }
+//== chr_octal_escape P0169 P0837
+int main(void) { return '\123'; }
+//== chr_octal_escape_1 P0169
+int main(void) { return '\1'; }
+//== chr_hex_one_digit P0166 P0168 P0837
+int main(void) { return '\x4'; }
+//== chr_hex_three_digits P0166 P0168
+int main(void) { return '\x041'; }
+//== chr_hex_no_digit P0166
+int main(void) { return '\x'; }
+//== chr_unknown_escape P0169 P0837
+int main(void) { return '\q'; }
+//== chr_question_escape P0164 P0169
+int main(void) { return '\?'; }
+//== chr_wide_L P0171 P0839
+int main(void) { return L'A'; }
+//== chr_wide_u P0171 P0839
+int main(void) { return u'A'; }
+//== chr_wide_U P0171 P0839
+int main(void) { return U'A'; }
+//== chr_unterminated P0172
+int main(void) { return 'a; }
+//== chr_newline P0172
+int main(void) { return '
+'; }
+//== chr_eof P0172
+int main(void) { return 0; } int c = '
+//== str_unterminated P0179
+int main(void) { char *s; s = "abc; return 0; }
+//== str_newline P0179
+int main(void) { char *s; s = "ab
+c"; return 0; }
+//== str_unknown_escape P0169 P0179
+int main(void) { char *s; s = "a\qb"; return 0; }
+//== str_octal_escape P0169
+int main(void) { char *s; s = "\101"; return 0; }
+//== str_hex_one_digit P0166 P0168
+int main(void) { char *s; s = "\x4"; return 0; }
+//== str_splice P0056 P0179
+int main(void) { char *s; s = "ab\
+c"; return 0; }
+//== str_wide_L P0182 P0839
+int main(void) { char *s; s = L"text"; return 0; }
+//== str_wide_u P0182 P0839
+int main(void) { char *s; s = u"text"; return 0; }
+//== str_wide_U P0182 P0839
+int main(void) { char *s; s = U"text"; return 0; }
+//== str_u8 P0182 P0839
+int main(void) { char *s; s = u8"text"; return 0; }
+//== flt_suffix_L P0189 P0837
+int main(void) { float f; f = 1.0L; return 0; }
+//== flt_suffix_l P0189
+int main(void) { float f; f = 1.0l; return 0; }
+//== flt_hex P0189 P0837
+int main(void) { float f; f = 0x1.0p0; return 0; }
+//== flt_hex_p P0189
+int main(void) { float f; f = 0x1p3; return 0; }
+//== flt_identifier_tail P0131 P0837
+int main(void) { float f; f = 1.0foo; return 0; }
+//== flt_no_mantissa P0187
+int main(void) { float f; f = .e5; return 0; }
+//== flt_exp_no_digits P0131 P0186
+int main(void) { float f; f = 1e; return 0; }
+//== flt_exp_sign_no_digits P0186
+int main(void) { float f; f = 1e+; return 0; }
+//== flt_suffix_ff P0186
+int main(void) { float f; f = 1.0ff; return 0; }
+//== flt_overflow P0207
+int main(void) { float f; f = 1e39; return 0; }
+//== flt_overflow_2 P0207
+int main(void) { float f; f = 1.8e38; return 0; }
+//== flt_int_suffix_f P0186
+int main(void) { float f; f = 1f; return 0; }
+//== flt_unsigned_suffix P0186 P0188
+int main(void) { float f; f = 1.5u; return 0; }
+//== op_plus_eq P0127 P0129 P0837 P0126
+int main(void) { int x; x = 1; x += 2; return 0; }
+//== op_minus_eq P0127 P0837 P0126
+int main(void) { int x; x = 1; x -= 2; return 0; }
+//== op_star_eq P0127 P0126
+int main(void) { int x; x = 1; x *= 2; return 0; }
+//== op_slash_eq P0127 P0126
+int main(void) { int x; x = 1; x /= 2; return 0; }
+//== op_percent_eq P0127 P0126
+int main(void) { int x; x = 1; x %= 2; return 0; }
+//== op_shl_eq P0127 P0126
+int main(void) { int x; x = 1; x <<= 2; return 0; }
+//== op_shr_eq P0127 P0126
+int main(void) { int x; x = 1; x >>= 2; return 0; }
+//== op_and_eq P0127 P0126
+int main(void) { int x; x = 1; x &= 2; return 0; }
+//== op_or_eq P0127 P0126
+int main(void) { int x; x = 1; x |= 2; return 0; }
+//== op_xor_eq P0127 P0126
+int main(void) { int x; x = 1; x ^= 2; return 0; }
+//== op_conditional P0127 P0436 P0837 P0126 P1033
+int main(void) { int x; x = 1 ? 2 : 3; return 0; }
+//== op_question_only P0127 P0837 P0126
+int main(void) { int x; x = 1 ? 2; return 0; }
+//== op_colon_only P0127 P0126
+int main(void) { int x; x = 1 : 2; return 0; }
+//== op_arrow P0127 P0837 P0126
+int main(void) { int *p; p = 0; return p->x; }
+//== op_member P0127 P0128 P0451 P0126 P1033
+int main(void) { int x; x = 1; return x.y; }
+//== op_ellipsis P0127 P0344 P0837 P0126
+int main(void) { return ...; }
+//== op_comma_expr P0125 P0437 P0126 P1033
+int main(void) { int x; x = (1, 2); return 0; }
+//== op_comma_stmt P0125 P0437 P0126
+int main(void) { int x; int y; x = 1, y = 2; return 0; }
+//== op_comma_for P0125 P0126
+int main(void) { int i; int j; for (i = 0, j = 0; i < 2; i++) ; return 0; }
+//== op_fused_minus P0120 P0126
+int main(void) { int i; int j; i = 1; j = 2; return i--j; }
