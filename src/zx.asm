@@ -667,7 +667,6 @@ zunpack:
         ret z
         push ix
         call isize
-        ld (zn),hl
         ld b,h
         ld c,l
         ld a,K_FILE
@@ -675,7 +674,8 @@ zunpack:
         ld a,ENOSPC
         jr c,zfail
         ld (zob),hl
-        ld de,(zn)
+        ex de,hl
+        call isize              ; (not zn: a file packed meanwhile set it)
         add hl,de
         ld (zn),hl              ; zn = end of the output
         ld a,1

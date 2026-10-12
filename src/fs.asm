@@ -432,7 +432,10 @@ namei:
         jr nz,.sl3
         inc a
 .sl3:   ld (u_nlast),a
-        ; search the directory
+        ; search the directory (an error below leaves no parent: creat,
+        ; mkdir and link must not write into the last directory searched)
+        ld hl,0FFFFh
+        ld (u_pdir),hl
         ld hl,(u_nmi)
         call iget
         ret c

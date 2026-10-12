@@ -42,21 +42,21 @@ memwr:  ld de,(u_off)
 tapwr:
         call tapset
         call ROM_SABYTES
+        scf
         jr tapend
 taprd:
         call tapset
         scf
         call ROM_LDBYTES
-        jr nc,tapfail
-tapend: di
-        xor a
+; tapend: NC = failed (rom_error comes here too, BREAK)
+tapend: ld sp,(tapsp)           ; drop the error trap (flags kept)
+        ld hl,kerrsp
+        ld (SV_ERRSP),hl
+        di
+        ld a,0
         ld (tapbusy),a
         ei
-        jp ttwrite.xj0_33  ; (shared tail)
-tapfail:
-        xor a
-        ld (tapbusy),a
-        ei
+        jp c,ttwrite.xj0_33  ; (shared tail)
         ld a,EIO
         scf
         ret
@@ -77,7 +77,10 @@ tapset: ld a,0FFh
         xor a
 .s:     pop hl                  ; the caller's frame is the one BREAK
         ld (tapsp),sp           ; unwinds to
-        jp (hl)
+        ld bc,rom_error         ; ROM errors (BREAK) unwind to a trap on
+        push bc                 ; this stack: the ROM enables interrupts
+        ld (SV_ERRSP),sp        ; before RST 8, so whatever SP its error
+        jp (hl)                 ; path leaves must have room below it
 
 tapbusy equ MEMBOT+5
 tapsp   equ MEMBOT+6

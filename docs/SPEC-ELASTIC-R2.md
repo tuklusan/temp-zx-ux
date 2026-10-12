@@ -213,7 +213,7 @@ One standard Spectrum CODE pair (R1 review, item 12):
 1. `exec /dev/cassette/NAME args` (or `/dev/tap/NAME`) runs `/etc/ldx` in its place. The arguments are unchanged, so `argv[0]` is the path as typed.
 2. `ldx` opens the tape and reads headers until it finds a CODE header named NAME with parameter 2 `SS`. Data blocks and other programs are passed over; BREAK stops the search.
 3. `ldx` adds the room the arguments need to parameter 1. If that exceeds the arena's free bytes, plus the window, plus its own image, it says `not enough memory` and exits.
-4. `sys ssxload` (40) takes BC = file length and DE = total memory. From here the caller's image is given up, as at an `exec`'s point of no return:
+4. `sys ssxload` (40) takes BC = file length, DE = total memory and HL = the arguments (argv, 0-terminated, as for `exec`; `ldx` passes its own). From here the caller's image is given up, as at an `exec`'s point of no return:
    - The window is freed.
    - The SAVE block shrinks to the u-area.
    - The arena is compacted, so all its free space is one block: the image goes just above the movable blocks, and what is left stays in one piece above it, next to the window (2.2; before, holes left below a first program could keep a second one from fitting).

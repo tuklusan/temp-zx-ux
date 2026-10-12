@@ -87,6 +87,7 @@ ldx_m:  pop hl
         jr c,.err
         ld de,(LX_NM)           ; the memory
         ld bc,(LX_H+11)         ; the file's length
+        ld hl,(U_ARGV)          ; and our arguments, for the program
         ld a,_ssxload
         call SYS                ; returns only if it was refused
 .ioe:   ld de,s_lxio

@@ -89,8 +89,7 @@ rom_error:                      ; RST 8 from a ROM routine
         ld a,(tapbusy)
         or a
         jr z,.p
-        ld sp,(tapsp)           ; BREAK during tape i/o
-        jp tapfail
+        jp tapend               ; BREAK during tape i/o (NC: failed)
 .p:     ld sp,KSTACK
         ld hl,msg_romerr
         jr panic
@@ -1267,16 +1266,24 @@ sysbreak:                       ; HL = new break
 ; ---------------------------------------------------------------------
 sysexec:                        ; HL = path, DE = argv (0-terminated)
         ld (u_tmp),hl
-        ; copy arguments into the kernel argument buffer
-        ld bc,KARGS
+        call kargv
+        ld a,EINVAL
+        jp c,syserr
+        ld hl,(u_tmp)
+        call kexec
+        jp syserr
+
+; kargv: DE = argv (0-terminated; 0: argv[0] = the path at HL) -> the
+;   strings in KARGS, xargc, xtop.  CF if too many or too long
+kargv:  ld bc,KARGS
         xor a
         ld (xargc),a
         ld a,d
         or e
         jr nz,.a0
-        ; no argv: argv[0] = path
-        ex de,hl
+        ex de,hl                ; no argv: argv[0] = path
         call .str
+        ret c
         jr .a9
 .a0:    ld a,(de)
         ld l,a
@@ -1290,14 +1297,10 @@ sysexec:                        ; HL = path, DE = argv (0-terminated)
         ex de,hl
         call .str
         pop de
-        jr c,.big
+        ret c
         jr .a0
-.a9:    ld (xtop),bc
-        ld hl,(u_tmp)
-        call kexec
-        jp syserr
-.big:   ld a,EINVAL
-        jp syserr
+.a9:    ld (xtop),bc            ; (NC)
+        ret
 ; copy string DE -> (BC), count it; CF if too many / too long
 .str:   ld a,(xargc)
         cp 24
@@ -1305,21 +1308,16 @@ sysexec:                        ; HL = path, DE = argv (0-terminated)
         ret c
         inc a
         ld (xargc),a
-.s1:    ld a,(de)
+.s1:    ld hl,KARGS+KARGSZ-1    ; room checked before the store: the
+        or a                    ; byte after KARGS is the kernel's
+        sbc hl,bc
+        ret c
+        ld a,(de)
         ld (bc),a
         inc de
         inc bc
-        push af
-        ld hl,KARGS+KARGSZ
-        or a
-        sbc hl,bc
-        jr c,.ov
-        pop af
         or a
         jr nz,.s1
-        ret
-.ov:    pop af
-        scf
         ret
 
 ; kexec: HL = path; KARGS/xargc/xtop hold the arguments.
@@ -1616,8 +1614,9 @@ ks_ldx: db "/etc/ldx",0
 ;  runs in place of /dev/cassette/NAME (kexec); it finds NAME's header
 ;  on the tape (a CODE header whose second parameter is 'SS', the first
 ;  the memory the program needs) and makes this call with BC = the
-;  length of the SSX1 file (the data block that follows) and DE = the
-;  bytes of memory for the program and its arguments.  The caller's image is given up at once (as an exec), so
+;  length of the SSX1 file (the data block that follows), DE = the
+;  bytes of memory for the program and its arguments and HL = the
+;  arguments (argv, 0-terminated, as for exec).  The caller's image is given up at once (as an exec), so
 ;  a program that cannot be loaded ends the process with status 1.  If
 ;  the arena cannot hold it, the window is lent to it: resident-text
 ;  processes wait until it ends.  (SPEC-ELASTIC-R2 section 6.)
@@ -1627,15 +1626,21 @@ KC_TOT  equ xhdr+2              ; bytes of memory: image .. arguments
 KC_IMG  equ xhdr+4              ; the IMAGE block
 KC_F    equ xhdr+6              ; the file, at the top of the block
 sysssxl:
+        push hl                 ; argv (isssx returns HL = the SAVE)
         call isssx              ; only a resident caller (/etc/ldx)
         ld a,EINVAL
         jp nz,syserr
         ld h,d                  ; the file must fit the memory asked for
         ld l,e
         sbc hl,bc               ; (CF clear: isssx ends with OR)
+        pop hl
         jp c,syserr
         ld (KC_TOT),de
         ld (KC_ENT),bc
+        ex de,hl                ; the caller's argv, again: KARGS may hold
+        call kargv              ; another process's exec arguments by now
+        ld a,EINVAL
+        jp c,syserr
         ; ---- point of no return: the caller's image goes
         di
         ld sp,KSTACK
