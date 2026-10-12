@@ -395,6 +395,20 @@ def ssx_tape(name):
     return rtap.records(open(out, 'rb').read(), name)
 
 
+def ssx_tape_asm(name):
+    """tests/c/NAME.c plus the helpers in tests/c/NAME.s -> cassette records"""
+    import ras, rld, rtap
+    from rcc import driver
+    src = os.path.join(HERE, 'c', name + '.c')
+    text, prog, g = driver.compile_to_asm(src, {'heap': 1024})
+    text += open(os.path.join(HERE, 'c', name + '.s')).read()
+    obj = ras.assemble_text(text, name + '.s')
+    libp = os.path.join(ROOT, 'sdk', 'lib', 'libc48.ssa')
+    data = rld.link([rld.Obj(obj, name)], [rld.read_archive(open(libp, 'rb').read(), libp)],
+                    'start', driver.stack_estimate(g), 0)[0]
+    return rtap.records(data, name)
+
+
 def run_cassette(s, name, args='', before=()):
     blocks = [b for n in before for b in ssx_tape(n)] + ssx_tape(name)
     s.zx.type('/dev/cassette/%s%s\n' % (name, args))
@@ -576,6 +590,83 @@ def cassette_too_big(s):
     s.until('not enough memory', 3000)
     s.wait_prompt(1000)
     s.expect('echo still here', 'still here')
+
+
+@test
+def banner_motd(s):
+    """boot banner year, the message of the day, init's small SAVE"""
+    s.until('procs=4 ok', 2000)
+    scr = s.screen()
+    if '2026 SANYALnet Labs' not in scr or '2006' in scr:
+        raise Fail('copyright line:\n' + scr)
+    s.login()
+    scr = s.screen()
+    if 'Spectrum 48K.' not in scr or 'Erdogan' in scr:
+        raise Fail('motd:\n' + scr)
+    save = kword(s, 'p_save')           # init is slot 0: u-area, U_T, 160 stack
+    size = s.zx.mem[save - 4] | s.zx.mem[save - 3] << 8
+    if size > 59 + 15 + 160 + 8:
+        raise Fail('init SAVE block is %d bytes' % size)
+
+
+@test
+def more_pager(s):
+    s.login()
+    s.sh('od /usr/doc/zxpack > /tmp/m', frames=20000)
+    s.zx.type('more /tmp/m\n')
+    s.until('--More--', 3000)
+    first = s.rows()[0]
+    s.key('SPACE')                      # the next page
+    s.wait(200)
+    s.until('--More--', 3000)
+    if s.rows()[0] == first:
+        raise Fail('SPACE did not page:\n' + s.screen())
+    s.key('ENTER')                      # one more line
+    s.wait(100)
+    s.until('--More--', 1000)
+    s.type('q')
+    s.wait_prompt()
+    s.expect('echo echoed', 'echoed')   # the terminal is back in echo mode
+    s.zx.type('more < /tmp/m\n')
+    s.until('--More--', 3000)
+    s.key('CS', 'SPACE')                # BREAK quits too
+    s.wait_prompt()
+    s.expect('echo again', 'again')
+    s.sh('echo short > /tmp/n')
+    s.expect('more /tmp/n /tmp/n', '::: /tmp/n', 'short', absent=('--More--',))
+    s.expect('more', 'usage: more')
+
+
+@test
+def sh_script_args(s):
+    """sh file args: the script buffers are above the break only meanwhile"""
+    s.login()
+    s.sh("echo 'echo arg $1 $2' > /tmp/s")
+    free = df_free(s)
+    s.expect('sh /tmp/s one two', 'arg one two')
+    s.expect('df', re.compile(r'\d+ bytes free'))
+    if df_free(s) != free:
+        raise Fail('memory not given back: %d -> %d' % (free, df_free(s)))
+
+
+@test
+def kernel_fixes(s):
+    """review fixes C1, C2, M1, M3, M6 (tests/c/kfix.c)"""
+    s.login()
+    inodes = lambda: int(re.search(r'(\d+) i-nodes free', '\n'.join(s.sh('df'))).group(1))
+    before = inodes()
+    s.zx.type('/dev/cassette/kfix\n')
+    s.zx.tr.edges = zxrun.tape_pulses(ssx_tape_asm('kfix'), s.zx.sim.registers[25] + 350000)
+    s.until('kfix done', 6000)
+    scr = s.screen()
+    for w in ('eof ok', 'far ok', 'unlink ok', 'ssxload ok', 'iy ok'):
+        if w not in scr:
+            raise Fail('%r missing:\n%s' % (w, scr))
+    s.wait_prompt(3000)
+    s.expect('ls /tmp', absent=('k1',))
+    if inodes() != before:
+        raise Fail('i-node leaked: %d -> %d' % (before, inodes()))
+    s.expect('echo alive', 'alive')
 
 
 TESTS_BY_NAME = {f.__name__: f for f in TESTS}
