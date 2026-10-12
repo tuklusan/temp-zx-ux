@@ -30,3 +30,4 @@
 /bin/top          top
 /bin/vi           vi
 /bin/zxpack       zxpack
+/bin/more         more

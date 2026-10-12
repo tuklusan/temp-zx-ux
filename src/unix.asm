@@ -28,8 +28,8 @@
 ; ---------------------------------------------------------------------
 ;  boot  (UNIX v1: u0 'kernel_init')
 ; ---------------------------------------------------------------------
-; default time: Wed Nov  3 1971 00:00:00 (UNIX v1 manual date)
-DEFTIME equ 671*86400
+; default time: Fri Apr 23 1982 00:00:00, the ZX Spectrum's release
+DEFTIME equ 4495*86400
 
 ; --- initialize u-area of the process in core (fresh process 1)
 uinit:
@@ -2002,7 +2002,7 @@ boot:
 ; Startup messages: printed once, so they live in the boot area too
 msg_boot:
         db 10,"ZX-UX UNIX v1 48K ZX Spectrum Z80 3.5Mhz",10
-        db 127," 2006 SANYALnet Labs",10
+        db 127," 2026 SANYALnet Labs",10
         db "ZX-UX v1 kernel "
         include "../build/bootinfo.inc"
 msg_ok: db "ok",10,0

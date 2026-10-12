@@ -36,7 +36,7 @@ def main():
          values['ITAB'] < values['AR0'] < values['WINDOW']),
         ('256-byte model area', values['ITAB'] - values['ZXW'] == max(256, boot_area)),
         ('boot banner', banner.startswith(b'\nZX-UX UNIX v1 48K ZX Spectrum Z80 3.5Mhz\n')),
-        ('copyright glyph', b'\x7f 2006 SANYALnet Labs' in banner and
+        ('copyright glyph', b'\x7f 2026 SANYALnet Labs' in banner and
          font[8 + (127 - 32) * 4:8 + (128 - 32) * 4] != b'\0' * 4),
         ('kernel and memory values',
          ('%dB free=%dB procs=%d ' % (kbytes, free_bytes, nproc)).encode()

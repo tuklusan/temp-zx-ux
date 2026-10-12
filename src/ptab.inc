@@ -73,4 +73,6 @@
         db 0
         dw t_zxpack, e_zxpack-t_zxpack
         db 0
-NPROG   equ 37
+        dw t_more, e_more-t_more
+        db 0
+NPROG   equ 38

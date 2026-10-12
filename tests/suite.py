@@ -213,7 +213,7 @@ def dirs(s):
 @test
 def misc_cmds(s):
     s.login()
-    s.expect('date', 'Wed Nov  3 00:0', '1971')
+    s.expect('date', 'Fri Apr 23 00:0', '1982')   # the ZX Spectrum's release
     s.sh('date 0704120076')
     s.expect('date', 'Jul  4 12:00', '1976')
     s.expect('hello', 'Hello World!')
@@ -285,7 +285,10 @@ def zxpack_cmd(s):
     import build, zxpack
     motd = build.MOTD.encode()
     packed = zxpack.pack(motd)
-    expected = '%d -> %d bytes' % (len(motd), len(packed))
+    if len(motd) < 129:                 # zok: smaller files are never packed
+        expected = 'would not be smaller'
+    else:
+        expected = '%d -> %d bytes' % (len(motd), len(packed))
     s.expect('zxpack /etc/motd', expected, frames=60000)
 
 

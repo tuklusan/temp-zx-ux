@@ -20,7 +20,7 @@ BSIZE = 128
 NBLK = 64
 NINODE = 64
 ROOTINO = 41
-DEFTIME = 671 * 86400
+DEFTIME = 4495 * 86400                 # Fri 23 Apr 1982, the ZX Spectrum's release (unix.asm)
 
 IALLOC, IFDIR, IFLARGE, IFTEXT, IFPACK = 0x8000, 0x4000, 0x1000, 0x0800, 0x0400
 ISUID, IEXEC, IROWN, IWOWN, IROTH, IWOTH = 0x20, 0x10, 0x08, 0x04, 0x02, 0x01
@@ -37,8 +37,7 @@ EXTRA = os.path.join(SRC, 'programs.txt')   # more programs, one per line
 ADDFILES = []
 
 MOTD = ("\n"
-        "  Welcome to ZX-UX UNIX v1 for the ZX Spectrum 48K,\n"
-        "  based on the 8086 UNIX v1 design by Erdogan Tan.\n"
+        "  Welcome to ZX-UX UNIX v1 for the ZX Spectrum 48K.\n"
         "  Read /usr/doc/zxpack about packed files.\n"
         "\n")
 
@@ -163,7 +162,7 @@ def mkfs(syms, progs):
 
     addfile('/etc/motd', MOTD.encode(), pack=True)  # as the idle packer would
     mkdir('/usr/doc', D | IWOTH)
-    for doc in ('zxpack', 'tar'):
+    for doc in ('zxpack', 'tar', 'more'):
         addfile('/usr/doc/' + doc, open(os.path.join(SRC, doc + '.doc'), 'rb').read(),
                 pack=True)
     for path, local, mode, z in ADDFILES:   # build.py --add path=file:mode[:z]
