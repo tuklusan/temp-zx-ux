@@ -7,9 +7,12 @@ int write(int h, void *p, unsigned int n);
 int unlink(char *path);
 int ssxload(unsigned int len, unsigned int tot);
 int iyprobe(char *buf);
+int exec(char *path, char **argv);
+int peek(unsigned int address);
 
 char buf[8];
 char probe[128];
+char *av[21];
 
 int main(void)
 {
@@ -56,6 +59,14 @@ int main(void)
         if (probe[i] != 0x55)
             n++;
     if (n == 0) print_at(6, 0, "iy ok"); else print_at(6, 0, "iy bad");
-    print_at(7, 0, "kfix done");
+    /* exec: arguments longer than the kernel's buffer are refused
+     * before a byte is written past it (6000h: the kernel's jp boot) */
+    for (i = 0; i < 20; i++)
+        av[i] = "abcdefghi";
+    av[20] = 0;
+    n = exec("/bin/echo", av);
+    if (n == -1 && peek(0x6000) == 0xC3) print_at(7, 0, "args ok");
+    else print_at(7, 0, "args bad");
+    print_at(8, 0, "kfix done");
     return 0;
 }

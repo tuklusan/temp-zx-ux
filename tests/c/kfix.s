@@ -3,7 +3,7 @@
 ; the stack (pushed left to right), the callee removes them.
 SYS     equ 6003h
         section text
-        global _creat,_write,_unlink,_ssxload,_iyprobe
+        global _creat,_write,_unlink,_ssxload,_iyprobe,_exec,_peek
 _creat: pop bc
         pop de
         push bc
@@ -18,6 +18,15 @@ _write: ld b,h                  ; BC = count
         ld a,4
         jp SYS
 _unlink: ld a,10
+        jp SYS
+_peek:  ld l,(hl)                ; peek(address): the byte there
+        ld h,0
+        ret
+_exec:  ex de,hl                ; DE = argv
+        pop bc
+        pop hl                  ; HL = path
+        push bc
+        ld a,11
         jp SYS
 _ssxload: ex de,hl              ; DE = memory
         pop hl
