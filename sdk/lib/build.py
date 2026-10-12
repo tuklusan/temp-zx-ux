@@ -97,6 +97,9 @@ def main():
                 objs.append((mname, ras.assemble_text(src, mname)))
             except ras.AsmError as e:
                 raise SystemExit('build: %s: %s\n%s' % (mname, e, src))
+    # the full SSB1 dispatch table, for separately compiled bytecode objects
+    from rcc import bcops
+    objs.append(('vmtab.sso', ras.assemble_text(bcops.vm_table(), 'vmtab')))
     for f in sorted(glob.glob(os.path.join(HERE, '*.c'))):
         text, prog, g = compile_to_asm(f, {'lib': True})
         objs.append((os.path.basename(f)[:-2] + '.sso', ras.assemble_text(text, os.path.basename(f))))

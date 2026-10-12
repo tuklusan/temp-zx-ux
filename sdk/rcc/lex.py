@@ -32,15 +32,16 @@ class CError(Exception):
 
 
 class Tok:
-    __slots__ = ('kind', 'val', 'file', 'line', 'bol', 'text')
+    __slots__ = ('kind', 'val', 'file', 'line', 'bol', 'text', 'ws')
 
-    def __init__(self, kind, val, file, line, bol, text=None):
+    def __init__(self, kind, val, file, line, bol, text=None, ws=True):
         self.kind = kind        # 'id' 'kw' 'int' 'float' 'char' 'str' 'op' 'eof'
         self.val = val
         self.file = file
         self.line = line
         self.bol = bol          # first token on its physical line
         self.text = text
+        self.ws = ws            # preceded by white space or a comment
 
     @property
     def where(self):
@@ -58,34 +59,72 @@ def _isid(c):
     return c.isascii() and (c.isalnum() or c == '_')
 
 
-def lex(src, fname):
-    """Tokenize one source file (bytes or str)."""
+def check_comment(text, fname, line):
+    """Spec 4 allows only TAB, LF and printable ASCII in source; rcc also
+    accepts bytes 0x80..0xFF inside comments (a maintainer decision, kept as
+    a documented deviation from P0044/P0049: e.g. a UTF-8 copyright sign in
+    a header comment).  Control bytes, CR, NUL and DEL stay errors there too."""
+    for k, c in enumerate(text):
+        if c == '\t' or c == '\n' or ' ' <= c <= '~' or ord(c) >= 0x80:
+            continue
+        what = 'CR' if c == '\r' else 'NUL' if c == '\0' else 'control byte 0x%02X' % ord(c)
+        raise CError('%s in a comment' % what, (fname, line + text.count('\n', 0, k)), 'lexical')
+
+
+def _bad_byte(c):
+    o = ord(c)
+    if c == '\r':
+        return 'CR'
+    if o == 0:
+        return 'NUL'
+    if o >= 0x80:
+        return 'non-ASCII byte 0x%02X' % o
+    if o < 0x20 or o == 0x7F:
+        return 'control byte 0x%02X' % o
+    return None
+
+
+def lex(src, fname, info=None):
+    """Tokenize one source file (bytes or str).  `info`, if a dict, receives
+    'ml_comments': the lines on which a block comment starts and spans a LF."""
     if isinstance(src, bytes):
-        src = src.decode('latin-1')      # non-ASCII is accepted only in comments
+        src = src.decode('latin-1')
     src = src.replace('\r\n', '\n')
     toks = []
+    mlc = set()
     i, n, line = 0, len(src), 1
     bol = True
+    ws = True
     while i < n:
         c = src[i]
         if c == '\n':
             line += 1
             bol = True
+            ws = True
             i += 1
             continue
         if c in ' \t':
+            ws = True
             i += 1
             continue
         if c == '/' and src.startswith('//', i):
             j = src.find('\n', i)
-            i = n if j < 0 else j
+            j = n if j < 0 else j
+            check_comment(src[i:j], fname, line)
+            i = j
+            ws = True
             continue
         if c == '/' and src.startswith('/*', i):
             j = src.find('*/', i + 2)
             if j < 0:
                 raise CError('unterminated comment', (fname, line), 'lexical')
-            line += src.count('\n', i, j)
+            check_comment(src[i:j], fname, line)
+            k = src.count('\n', i, j)
+            if k:
+                mlc.add(line)
+            line += k
             i = j + 2
+            ws = True
             continue
         where = (fname, line)
         if _isid0(c):
@@ -95,9 +134,13 @@ def lex(src, fname):
             w = src[i:j]
             if j < n and src[j] in '\'"' and w in ('L', 'u', 'U', 'u8'):
                 raise CError('prefixed literal unsupported', where, 'unsupported')
+            if len(w) > 15:
+                raise CError('identifier %s is longer than 15 characters' % w, where, 'lexical')
             kind = 'kw' if w in KEYWORDS else 'id'
             toks.append(Tok(kind, w, fname, line, bol))
             bol = False
+            toks[-1].ws = ws
+            ws = False
             i = j
             continue
         if c.isdigit() or (c == '.' and i + 1 < n and src[i + 1].isdigit()):
@@ -109,6 +152,8 @@ def lex(src, fname):
             text = src[i:j]
             toks.append(_number(text, where, bol))
             bol = False
+            toks[-1].ws = ws
+            ws = False
             i = j
             continue
         if c == "'":
@@ -117,28 +162,42 @@ def lex(src, fname):
                 raise CError('character literal must be one byte', where, 'lexical')
             toks.append(Tok('char', bs[0], fname, line, bol))
             bol = False
+            toks[-1].ws = ws
+            ws = False
             i = j
             continue
         if c == '"':
             j, bs = _literal(src, i + 1, '"', where)
             toks.append(Tok('str', bs, fname, line, bol))
             bol = False
+            toks[-1].ws = ws
+            ws = False
             i = j
             continue
         if c == '#':
             toks.append(Tok('hash', '#', fname, line, bol))
             bol = False
+            toks[-1].ws = ws
+            ws = False
             i += 1
             continue
         for op in OPS:
             if src.startswith(op, i):
                 toks.append(Tok('op', op, fname, line, bol))
                 bol = False
+                toks[-1].ws = ws
+                ws = False
                 i += len(op)
                 break
         else:
-            raise CError('invalid source byte %r' % c, where, 'lexical')
+            bad = _bad_byte(c)
+            if bad:
+                raise CError('%s in source (only TAB, LF and printable ASCII are allowed)' % bad,
+                             where, 'lexical')
+            raise CError('invalid source character %r' % c, where, 'lexical')
     toks.append(Tok('eof', None, fname, line, True))
+    if info is not None:
+        info['ml_comments'] = mlc
     return toks
 
 
@@ -220,7 +279,8 @@ def preprocess(path, include_dirs=(), _macros=None, _depth=0, src=None):
     if src is None:
         with open(path, 'rb') as f:
             src = f.read()
-    toks = lex(src, os.path.basename(path))
+    info = {}
+    toks = lex(src, os.path.basename(path), info)
     out = []
     i = 0
     while i < len(toks):
@@ -234,6 +294,9 @@ def preprocess(path, include_dirs=(), _macros=None, _depth=0, src=None):
                 line.append(toks[j])
                 j += 1
             i = j
+            if t.line in info['ml_comments']:
+                raise CError('block comment crosses the end of the directive line', t.where,
+                             'preprocessing')
             if not line or line[0].kind not in ('id', 'kw'):
                 raise CError('bad directive', t.where, 'preprocessing')
             d = line[0].val
@@ -250,20 +313,30 @@ def preprocess(path, include_dirs=(), _macros=None, _depth=0, src=None):
                     else:
                         raise CError('include not found: %s' % name, t.where, 'io')
                     out.extend(preprocess(p, include_dirs, macros, _depth + 1)[:-1])
-                elif len(line) == 4 and line[1].val == '<' and line[2].val == 'c48' or \
-                        (len(line) >= 3 and line[1].val == '<'):
-                    hdr = ''.join(str(x.text or x.val) for x in line[1:])
-                    if hdr.replace(' ', '') != '<c48.h>':
-                        raise CError('unknown system header', t.where, 'preprocessing')
+                elif len(line) >= 2 and line[1].kind == 'op' and line[1].val == '<':
+                    # exactly <c48.h>: no space inside the brackets (P0732)
+                    if [(x.kind, x.val) for x in line[1:]] != [('op', '<'), ('id', 'c48'), ('op', '.'),
+                                                              ('id', 'h'), ('op', '>')] or \
+                            any(x.ws for x in line[2:]):
+                        raise CError('unknown system header (only <c48.h>)', t.where, 'preprocessing')
                     out.extend(preprocess('c48.h', include_dirs, macros, 1, src=C48_H)[:-1])
                 else:
                     raise CError('bad #include', t.where, 'preprocessing')
             elif d == 'define':
-                if len(line) < 3 or line[1].kind != 'id':
+                if len(line) >= 3 and line[1].kind == 'id' and line[2].kind == 'op' and \
+                        line[2].val == '(' and not line[2].ws:
+                    raise CError('function-like macro %s is not supported' % line[1].val, t.where,
+                                 'unsupported')
+                if len(line) < 3 or line[1].kind != 'id' or not line[1].ws:
                     raise CError('bad #define', t.where, 'preprocessing')
+                if not line[2].ws:
+                    raise CError('#define needs white space between the name and its value', t.where,
+                                 'preprocessing')
                 name = line[1].val
-                if name.startswith('__'):
-                    raise CError('reserved macro name', t.where, 'preprocessing')
+                if name.startswith('__') or name == '_start':
+                    raise CError('reserved macro name %s' % name, t.where, 'preprocessing')
+                if name in RESERVED:
+                    raise CError('macro name %s is a reserved keyword' % name, t.where, 'preprocessing')
                 rep = []
                 for x in line[2:]:
                     if x.kind == 'id':

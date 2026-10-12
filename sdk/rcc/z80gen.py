@@ -10,7 +10,7 @@ Functions outside a recursive call cycle keep parameters and locals in a static
 overlay area (@ovl), laid out along the call graph; recursive functions use an
 IX frame built by @enter.
 """
-from .types import (BYTE, is_int, is_ptr, is_arr, sizeof, signed)
+from .types import (BYTE, is_int, is_ptr, is_arr, sizeof, signed, align_of)
 from .lex import CError
 from . import romfp
 
@@ -131,12 +131,12 @@ class Gen:
                         p.loc = self.frame_alloc(F, 5)
                         F.fparams.append((ptrloc, p.loc))
                 for l in f.locals:
-                    l.loc = self.frame_alloc(F, sizeof(l.ty))
+                    l.loc = self.frame_alloc(F, sizeof(l.ty), align_of(l.ty))
             else:
                 for p in f.params:
-                    p.loc = self.static_alloc(F, 5 if p.ty == 'float' else 2)
+                    p.loc = self.static_alloc(F, 5 if p.ty == 'float' else 2, align_of(p.ty))
                 for l in f.locals:
-                    l.loc = self.static_alloc(F, sizeof(l.ty))
+                    l.loc = self.static_alloc(F, sizeof(l.ty), align_of(l.ty))
         # globals
         for s in self.p.gvars:
             s.loc = ('st', s.label, sizeof(s.ty))
@@ -144,13 +144,17 @@ class Gen:
             if s.kind == 'var' and s.loc is None:
                 s.loc = ('st', s.label, sizeof(s.ty))
 
-    def frame_alloc(self, F, size):
+    def frame_alloc(self, F, size, align=1):
+        # IX is even (the stack stays word aligned: frames are rounded to
+        # even sizes), so an even offset is an even address
         F.frame += size
+        F.frame += F.frame & (align - 1)
         return ('fr', -F.frame, size)
 
-    def static_alloc(self, F, size):
-        off = F.size
-        F.size += size
+    def static_alloc(self, F, size, align=1):
+        # areas start at even offsets of the word-aligned @ovl
+        off = F.size + (F.size & (align - 1))
+        F.size = off + size
         return ('st', '%s+%d' % (F.label, off) if off else F.label, size)
 
     def ftemp(self):
@@ -181,6 +185,7 @@ class Gen:
                     if c in comp:
                         continue
                     b = max(b, base[c] + self.funcs[c].size)
+            b += b & 1                  # every area starts word aligned
             # members of a recursive cycle have no static area; non-recursive
             # single members
             for f in comp:
@@ -193,12 +198,17 @@ class Gen:
 
     # ------------------------------------------------------------ program
     def prune(self):
-        """Keep only functions and objects reachable from main."""
+        """Keep only functions and objects reachable from main.  A separately
+        compiled object (rcc -c) also keeps everything with external linkage:
+        other objects may use it (P0287)."""
         main = self.p.globals.get('main')
         if not (main and main.defined):
             return
+        module = self.opts.get('module')
         keep = set()
         work = [main]
+        if module:
+            work += [f for f in self.p.funcs if not f.static_fn]
         while work:
             f = work.pop()
             if f in keep:
@@ -241,7 +251,8 @@ class Gen:
                 if it[0] == 'a' and it[1] in labels and labels[it[1]] not in refs:
                     refs.add(labels[it[1]])
                     work.append(labels[it[1]])
-        self.p.gvars = [g for g in self.p.gvars if g in refs or (g.scope == 'global' and self.opts.get('keep_globals'))]
+        self.p.gvars = [g for g in self.p.gvars if g in refs or
+                        (g.scope == 'global' and (module or self.opts.get('keep_globals')))]
 
     def generate(self):
         self.prune()
@@ -257,7 +268,7 @@ class Gen:
         out.append('\tsection bss')
         out += self.bss_lines()
         if total:
-            out.append('@ovl:\tds %d' % total)
+            out += ['\talign 2', '@ovl:\tds %d' % total]
         for f, F in self.funcs.items():
             if F.size:
                 out.append('%s\tequ @ovl+%d' % (F.label, F.base))
@@ -270,13 +281,16 @@ class Gen:
                 out += ['\tsection text', '@main:\tpop bc', '\tpush de', '\tpush bc', '\tjp _main']
             else:
                 out.append('@main\tequ _main')
-        mal = self.p.globals.get('malloc')
-        if mal is not None and mal.used and main is not None:
+        # the heap of a whole program that uses malloc or free (a separately
+        # compiled object gets the library's default heap from libc48.ssa)
+        heapfn = [self.p.globals.get(n) for n in ('malloc', 'free')]
+        if any(h is not None and h.used for h in heapfn) and main is not None \
+                and not self.opts.get('module'):
             heap = self.opts.get('heap', 1024)
             region = heap + 256
             exports += ['___heap', '___heapw', '___heapsz']
-            out += ['\tsection data', '___heapw:\tdw %d' % (region // 2), '___heapsz:\tdw %d' % heap,
-                    '\tsection bss', '___heap:\tds %d' % region]
+            out += ['\tsection data', '\talign 2', '___heapw:\tdw %d' % (region // 2),
+                    '___heapsz:\tdw %d' % heap, '\tsection bss', '\talign 2', '___heap:\tds %d' % region]
         if exports:
             out.insert(0, '\tglobal ' + ','.join(exports))
         return '\n'.join(out) + '\n'
@@ -286,6 +300,8 @@ class Gen:
         for s in self.p.gvars:
             if s.init is None:
                 continue
+            if align_of(s.ty) > 1:
+                out.append('\talign %d' % align_of(s.ty))
             out.append('%s:' % s.label)
             out += self.init_lines(s.init)
         # Each non-adjacent literal occurrence is an independent static array.
@@ -302,6 +318,8 @@ class Gen:
         out = []
         for s in self.p.gvars:
             if s.init is None:
+                if align_of(s.ty) > 1:
+                    out.append('\talign %d' % align_of(s.ty))
                 out.append('%s:\tds %d' % (s.label, sizeof(s.ty)))
         return out
 
@@ -360,10 +378,16 @@ class Gen:
                 last = f.params[-1]
                 self.store_param(last, 'hl')
                 if n > 1:
-                    self.emit('pop bc')
+                    self.emit('pop bc')                 # return address
                     for p in reversed(f.params[:-1]):
                         self.emit('pop hl')
-                        self.store_param(p, 'hl')
+                        if p.ty == 'float' and p.loc[0] == 'st':
+                            # @fmov uses BC: keep the return address on the stack
+                            self.emit('push bc')
+                            self.store_param(p, 'hl')
+                            self.emit('pop bc')
+                        else:
+                            self.store_param(p, 'hl')
                     self.emit('push bc')
         self.stmt(f.body)
         # fall off the end
@@ -378,6 +402,7 @@ class Gen:
             self.emit('jp @leave%d' % k if k <= 3 else 'ld a,%d' % k)
             if k > 3:
                 self.emit('jp @leave')
+            F.frame += F.frame & 1      # keep SP even
             self.out[fixup + 1] = '\tdw %d' % (F.frame - 2)
         self.F = None
 
@@ -1044,19 +1069,7 @@ class Gen:
         x = e.a
         kind, d = e.v
         if x.ty == 'float':
-            one = self.p.conv(type(e.a)('num', 'int', v=1), 'float', e.where) if False else None
-            t = self.ftemp()
-            res = self.ftemp() if want and kind == 'post' else None
-            if res:
-                self.gf_into(x, res)
-            self.gf_into(x, t)
-            self.addr_hl(t)
-            self.emit('ld de,%s' % self.fconst_label(self.p.rom.from_int(1, False)))
-            self.emit('ld a,%d' % (romfp.ADD if d > 0 else romfp.SUB), 'call @fop')
-            self.fstore(x, t)
-            self.ffree(t)
-            if res:
-                self.ffree(res)
+            self.gfinc(e, None)
             return
         size = sizeof(x.ty)
         loc = self.lvalue_static(x)
@@ -1208,8 +1221,42 @@ class Gen:
             self.emit('call @fmov')
             return
         if op == 'inc':
-            raise CError('float ++/-- used as a value is not supported by this back end', e.where, 'unsupported')
+            self.gfinc(e, dst)
+            return
         raise AssertionError('gf %s' % op)
+
+    def fcopy(self, src, dst):
+        """Copy the float at location src to location dst."""
+        self.addr_hl(src)
+        self.addr_de_keep(dst)
+        self.emit('call @fmov')
+
+    def gfinc(self, e, dst):
+        """Float ++/-- (spec 52): the operand's address is evaluated once; the
+        value (into dst, if any) is the new value for prefix, the old for postfix."""
+        x = e.a
+        kind, d = e.v
+        t = self.ftemp()
+        if x.op == 'var':
+            self.gf_into(x, t)
+        else:
+            self.gx(x.a)                    # address, once
+            self.emit('push hl')
+            self.addr_de_keep(t)
+            self.emit('call @fmov')
+        if dst is not None and kind == 'post':
+            self.fcopy(t, dst)
+        self.addr_hl(t)
+        self.emit('ld de,%s' % self.fconst_label(self.p.rom.from_int(1, False)))
+        self.emit('ld a,%d' % (romfp.ADD if d > 0 else romfp.SUB), 'call @fop')
+        if x.op == 'var':
+            self.fstore(x, t)
+        else:
+            self.addr_hl(t)
+            self.emit('pop de', 'call @fmov')
+        if dst is not None and kind == 'pre':
+            self.fcopy(t, dst)
+        self.ffree(t)
 
     def addr_de_keep(self, loc):
         """DE = address of loc without disturbing HL."""

@@ -388,3 +388,48 @@ int main(void)
             same = 0;
     return !same;
 }
+//== ac_float_incdec_through_pointer P0563 P0564 P0565
+float a[3];
+int main(void)
+{
+    float *p;
+    float r;
+    a[0] = 1.0;
+    a[1] = 5.0;
+    p = a;
+    r = (*p++)++;
+    if (!(r == 1.0 && a[0] == 2.0 && p == a + 1))
+        return 1;
+    r = --*p;
+    return !(r == 4.0 && a[1] == 4.0);
+}
+//== ac_float_params_recursive P0342 P0596 P0604 P1078
+float acc(int n, float x, float step)
+{
+    if (n == 0)
+        return x;
+    x = x + step;
+    return acc(n - 1, x, step);
+}
+int main(void)
+{
+    float s;
+    s = 0.5;
+    return !(acc(4, 1.0, s) == 3.0 && s == 0.5);
+}
+//== ac_self_address_in_initializer P0270
+void *vp = &vp;
+static void *sp = &sp;
+char c;
+int arr[2] = { sizeof arr, 7 };
+int main(void)
+{
+    void **q;
+    q = vp;
+    if (*q != vp)
+        return 1;
+    q = sp;
+    if (*q != sp)
+        return 2;
+    return !(arr[0] == 4 && arr[1] == 7);
+}

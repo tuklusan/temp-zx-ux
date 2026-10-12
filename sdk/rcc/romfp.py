@@ -1,11 +1,14 @@
 """Five-byte Spectrum floating point computed by the real 48K ROM.
 
-The ROM calculator runs on an emulated Z80 (SkoolKit CSimulator), so the
+The ROM calculator runs on the SDK's bundled Z80 (sdk/zxcore.py), so the
 compiler's constant folding gives exactly the bytes the ZX-UX kernel's float
 service (which runs the same ROM code) gives at run time.
 """
-from skoolkit import CSimulator, ROM48, read_bin_file
-from skoolkit.simutils import from_memory
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import zxcore  # noqa: E402
 
 # kernel/runtime float-service operation codes (sys fp, see sdk/doc)
 ADD, SUB, MUL, DIV, POW, ABS, NEG, TRUNC, EXP, LN, SIN, COS, TAN, ASN, ACS, ATN, SQR = range(1, 18)
@@ -38,11 +41,8 @@ def setup_memory(mem):
 
 class RomFP:
     def __init__(self):
-        mem = [0] * 65536
-        rom = read_bin_file(ROM48)
-        mem[:len(rom)] = rom
-        self.sim = from_memory(CSimulator, mem, {'IY': 0x5C3A, 'SP': 0xA000}, {'iff': 0})
-        self.mem = self.sim.memory
+        self.zx = zxcore.Spectrum()
+        self.mem = self.zx.mem
         setup_memory(self.mem)
         self.cache = {}
 
@@ -55,20 +55,16 @@ class RomFP:
 
     def _run(self, pc, regs=None):
         m = self.mem
-        r = self.sim.registers
+        zx = self.zx
         sp = 0xA000 - 2
         self._w(sp, TRAP)
         self._w(ERR_SP, sp)
         m[ERR_NR] = 0xFF
-        r[12] = sp - 2               # a call frame returning to TRAP
-        self._w(sp - 2, TRAP)
-        r[10], r[11] = 0x5C, 0x3A
+        zx.set(iy=0x5C3A, sp=sp, iff1=False, iff2=False)
         if regs:
-            for k, v in regs.items():
-                r[k] = v
-        r[24] = pc
-        self.sim.run(pc, TRAP, False)
-        if r[24] != TRAP:
+            zx.set(**regs)
+        # a call frame returning to TRAP; ERR_SP's frame also ends at TRAP
+        if not zx.call(pc, TRAP, tlimit=200_000_000):
             raise RuntimeError('ROM float call did not return')
         if m[ERR_NR] != 0xFF:
             raise FPError(m[ERR_NR])
@@ -108,7 +104,7 @@ class RomFP:
         self._w(STKBOT, CSTK)
         self._w(STKEND, CSTK)
         # 2C9B DEC-TO-FP: CH_ADD -> first character, A = that character
-        self._run(0x2C9B, {0: t[0]})
+        self._run(0x2C9B, {'a': t[0]})
         e = self._r(STKEND)
         if e != CSTK + 5 or self._r(CH_ADD) != TEXT + len(t) - 1:
             raise FPError(-1)
@@ -134,9 +130,8 @@ class RomFP:
         self._w(STKBOT, CSTK)
         self._w(STKEND, CSTK + 5)
         self._run(0x2DA2)                   # FP-TO-BC
-        r = self.sim.registers
-        f = r[1]
-        bc = r[2] << 8 | r[3]
+        f = self.zx.flags
+        bc = self.zx.bc
         if f & 1:
             raise FPError(5)
         neg = not (f & 0x40)                # Z reset: negative

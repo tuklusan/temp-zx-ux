@@ -13,6 +13,8 @@ def compile_to_asm(path, opts=None):
     opts = opts or {}
     toks = preprocess(path)
     prog = parse(toks, lib=opts.get('lib', False))
+    if opts.get('module'):
+        opts = dict(opts, short=None)       # the library's full table has every form
     if opts.get('bytecode') and 'short' not in opts:
         # first pass: which short forms are used often enough to keep
         g = bcgen.BGen(prog, dict(opts))
@@ -23,7 +25,7 @@ def compile_to_asm(path, opts=None):
     g = bcgen.BGen(prog, opts) if opts.get('bytecode') else z80gen.Gen(prog, opts)
     text = g.generate()
     text = z80gen.peephole(text)
-    if not opts.get('lib') and '_udg_' in text:
+    if not opts.get('lib') and not opts.get('module') and '_udg_' in text:
         # the UDG bank: 32 slots, or --udgs N (slots 0..N-1)
         n = opts.get('udgs') or 32
         text += ('\tsection data\n\tglobal @nudg\n@nudg:\tdb %d\n'
@@ -140,18 +142,23 @@ def main(argv):
         return 2
     src = files[0]
     base = os.path.splitext(src)[0]
-    opts = {'lib': lib, 'heap': heap, 'stack': stack, 'udgs': udgs}
+    target = out or base + ('.s' if asm_only else '.sso' if obj_only else '.ssx')
+    if os.path.exists(target) and os.path.exists(src) and os.path.samefile(target, src):
+        print('rcc: output %s would overwrite the source' % target, file=sys.stderr)
+        return 2
+    if not os.path.isfile(src):
+        print('rcc: cannot read %s' % src, file=sys.stderr)
+        return 1
+    opts = {'lib': lib, 'heap': heap, 'stack': stack, 'udgs': udgs, 'module': obj_only}
     if mode == 'all':
         opts['bytecode'] = 'all'
     try:
         if asm_only or obj_only:
             text, prog, g = compile_to_asm(src, opts)
             if asm_only:
-                open(out or base + '.s', 'w').write(text)
-                return 0
+                return write_out(target, text.encode())
             obj = ras.assemble_text(text, os.path.basename(base) + '.s')
-            open(out or base + '.sso', 'wb').write(obj)
-            return 0
+            return write_out(target, obj)
         data, g, text, obj, need = build(src, opts)
         if mode is None and limit and need > limit:
             # too big for native code: bytecode (SSB1) for what it can
@@ -170,5 +177,19 @@ def main(argv):
         return 1
     if limit and need > limit:
         print('rcc: %s needs %d bytes of memory (limit %d)' % (src, need, limit), file=sys.stderr)
-    open(out or base + '.ssx', 'wb').write(data)
+    return write_out(target, data)
+
+
+def write_out(path, data):
+    """Write the output file; status 1 (and no partial file) on failure."""
+    try:
+        with open(path, 'wb') as f:
+            f.write(data)
+    except OSError as e:
+        print('rcc: cannot write %s: %s' % (path, e.strerror or e), file=sys.stderr)
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+        return 1
     return 0

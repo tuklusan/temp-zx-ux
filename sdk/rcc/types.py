@@ -47,6 +47,16 @@ def sizeof(t):
     return None
 
 
+def align_of(t):
+    """Spec 18 (P0222, P0231, P0306): 2 for short, int and pointers (and
+    arrays of them), 1 for char and float."""
+    if is_arr(t):
+        return align_of(t[1])
+    if is_ptr(t) or t in ('short', 'ushort', 'int', 'uint'):
+        return 2
+    return 1
+
+
 def promote(t):
     if t in ('char', 'uchar', 'short'):
         return 'int'

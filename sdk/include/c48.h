@@ -1,6 +1,7 @@
 /* ZX-UX SDK: the C48 library as ZX-UX provides it (SPEC-SDK-R2 section 4).
  * #include <c48.h> gives these prototypes; a program may also declare the
  * ones it uses itself, with exactly these types. */
+#define NULL 0
 int getchar(void);
 int putchar(int c);
 int puts(char *s);

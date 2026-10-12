@@ -2,11 +2,30 @@
 
 Independent of sdk/rcc: runs the ROM's own DEC-TO-FP (2C9Bh) on a decimal
 string, STACK-BC (2D2Bh) on a 16-bit magnitude, and the calculator's negate
-(1Bh) on an emulated Z80 (SkoolKit CSimulator), and returns the five bytes
-left on the calculator stack.  A ROM error report raises RomError.
+(1Bh) on an emulated Z80, and returns the five bytes left on the calculator
+stack.  A ROM error report raises RomError.
+
+Two Z80s can run it: 'z80python', the plain z80-python core bundled in sdk/
+(not rcc's code, nor the z80fast handlers rvm uses), and 'skoolkit', SkoolKit's
+CSimulator when SkoolKit is installed (a second, independent emulator).
 """
-from skoolkit import CSimulator, ROM48, read_bin_file
-from skoolkit.simutils import from_memory
+import os
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+SDK = os.path.join(os.path.dirname(os.path.dirname(HERE)), 'sdk')
+ROM48 = os.path.join(SDK, 'rom', '48.rom')
+
+
+def engines():
+    """the Z80 engines available here"""
+    out = ['z80python']
+    try:
+        import skoolkit  # noqa: F401
+        out.append('skoolkit')
+    except ImportError:
+        pass
+    return out
 
 STKBOT, STKEND, MEM, ERR_SP, CH_ADD, ERR_NR = 0x5C63, 0x5C65, 0x5C68, 0x5C3D, 0x5C5D, 0x5C3A
 FLAGS = 0x5C3B
@@ -21,8 +40,9 @@ class RomError(Exception):
 
 
 class Oracle:
-    def __init__(self):
-        self.rom = read_bin_file(ROM48)
+    def __init__(self, engine='z80python'):
+        self.engine = engine
+        self.rom = open(ROM48, 'rb').read()
 
     def _fresh(self):
         mem = [0] * 65536
@@ -42,10 +62,8 @@ class Oracle:
         mem[ERR_NR] = 0xFF
         r = dict(regs)
         r.update({'SP': sp - 4, 'PC': pc, 'IY': 0x5C3A})
-        sim = from_memory(CSimulator, mem, r, {'iff': 0})
-        sim.run(pc, STOP, False)
-        m = sim.memory
-        if sim.registers[24] != STOP:
+        m, at = (self._skoolkit if self.engine == 'skoolkit' else self._z80python)(mem, r)
+        if at != STOP:
             raise RuntimeError('ROM call did not finish')
         if m[ERR_NR] != 0xFF:
             raise RomError('ROM error report %d' % (m[ERR_NR] + 1))
@@ -53,6 +71,36 @@ class Oracle:
         if end - CALC_STACK != 5:
             raise RuntimeError('calculator stack holds %d bytes' % (end - CALC_STACK))
         return m, bytes(m[CALC_STACK:CALC_STACK + 5])
+
+    @staticmethod
+    def _skoolkit(mem, r):
+        from skoolkit import CSimulator
+        from skoolkit.simutils import from_memory
+        sim = from_memory(CSimulator, mem, r, {'iff': 0})
+        sim.run(r['PC'], STOP, False)
+        return sim.memory, sim.registers[24]
+
+    @staticmethod
+    def _z80python(mem, r):
+        if SDK not in sys.path:
+            sys.path.insert(0, SDK)
+        from z80_python.cpu import Z80CPU
+        m = bytearray(mem)
+
+        def wr(a, v):
+            if a >= 0x4000:
+                m[a] = v
+        cpu = Z80CPU(m.__getitem__, wr)
+        for k, v in r.items():
+            if k in ('A', 'B', 'C', 'D', 'E', 'H', 'L'):
+                setattr(cpu, k.lower(), v)
+            else:
+                setattr(cpu, k.lower(), v)
+        for _ in range(5_000_000):
+            if cpu.pc == STOP:
+                break
+            cpu.step()
+        return m, cpu.pc
 
     def decimal(self, text):
         """bytes of the decimal floating literal text (no sign, no suffix)"""
@@ -81,7 +129,6 @@ class Oracle:
 
 
 if __name__ == '__main__':
-    import sys
     o = Oracle()
     for t in sys.argv[1:]:
         try:

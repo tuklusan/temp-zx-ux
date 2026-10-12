@@ -16,130 +16,82 @@ the docx paragraphs are not in it.
 ## Running
 
 ```
-python3 tools/build.py                          # --zxux only: ZX-UX build, then
-# tap2sna.py build/ZX-UX.tzx -> build/test.z80   (the snapshot tests/suite.py uses)
-python3 sdk/lib/build.py                                             # builds sdk/lib/libc48.ssa
-python3 tests/c48-suite/run_suite.py --zxux     # about 1 minute
+python3 tests/c48-suite/run_suite.py            # about 1.5 minutes; Python 3.11+ only
+python3 tests/c48-suite/run_suite.py --zxux     # also on ZX-UX itself (see below)
 ```
 
-`--only run,status,link,cases,lib,tool` selects groups. Without `--zxux`, the cassette runs on
-ZX-UX are skipped.
+The SDK needs nothing but Python (its Z80 core and the 48K ROM are bundled in
+`sdk/`), and so does the suite.  If SkoolKit happens to be installed, the
+float oracle also runs the ROM on SkoolKit's simulator and requires both
+emulators to agree.  `--zxux` boots ZX-UX from `build/test.z80` (made by
+`python3 tools/build.py` and SkoolKit's `tap2sna.py`) with the repository's
+`tools/zxrun.py`, which needs SkoolKit: that is the ZX-UX test harness, not
+the SDK.
 
-The run writes three files to `build/c48-suite/`:
-
-- `results.json`: every test execution;
-- `resolution.csv`: one row per paragraph, with its full text;
-- `RESOLUTION.md`: a summary, the failed tests, and the paragraph table with full text.
-
-The exit status is 0 when the run itself worked. Deviations are reported in those files; they
-do not change the exit status.
+`--only run,status,link,cases,lib,tool` selects groups.  The run writes to
+`build/c48-suite/`: `results.json` (every test execution), `resolution.csv`
+and `RESOLUTION.md` (one row per paragraph with its full text, how it was
+resolved and the result).  The copies of the two tables in this directory are
+from the run recorded below.  The exit status is 0 when the run itself worked.
 
 ## Files
 
 | File | What it tests |
 |---|---|
-| `ck.h` | `ck(id, ok)` prints `F<id>` when a check fails, and `ck_done()` prints `N<count>.`. The `/* Pnnnn ... */` comment after each `ck()` call names the paragraphs that check covers. |
-| `t1_lex.c` | Source form, comments, identifiers, tokens, integer/char/string/float literals, every operator and punctuator (§4–17) |
-| `t2_types.c` | Sizes, plain-char signedness, representation and alignment, declarators, linkage and scope, initializers, pointers (§18–34) |
-| `t3_expr.c` | Constant expressions, conversions, promotions, overflow wrap, shifts, comparisons, pointer arithmetic, `sizeof`, lvalues (§35–52) |
-| `t4_float.c` | 55 golden float literals, compared byte-for-byte with the 48K ROM's own DEC-TO-FP/STACK-BC/negate (`romoracle.py`); also constant folding vs run time, and float parameters and results |
-| `t5_stmt.c` | Evaluation order, calls, returns, locals, every statement form |
-| `t6_pp.c` + `t6_*.h` | `#define` and `#include`, including nesting, include-once behaviour and `<c48.h>` |
-| `t7_main.c` | `main(argc, argv)` with arguments `alpha b`, and `<c48.h>` calls |
-| `t8_status.c` | Run-time traps and exit statuses. There are 19 cases plus a control; the case table is at the top of the file. |
-| `t9_main.c`, `t9_mod.c` | Separate compilation (`-c`), `rld` linking, SSA1 archives, and external/static linkage |
-| `t10_abi.c`, `t10_abi.s` | The calling convention, checked against hand-written assembler |
-| `n1_lex.cases` … `n4_pp.cases` | 474 programs that must be rejected (status 1, an `rcc:` diagnostic, and no output file). `diag=` additionally requires particular diagnostic text. |
-| `p_accept.cases` | 44 small programs that must build and exit with status 0 on both back ends. When a case is marked `may`, a failure is reported as NOTE (optional or conditional requirement). |
-| `dispositions.tsv` | Explains why each paragraph that no test covers has no test. The kinds are HEADING, FRONT, INFO, SUMMARY, PROCESS, DOC, OTHER-IMPL, UNSPECIFIED and RESOURCE. |
-| `romoracle.py` | Runs the ROM's float routines in the emulator to serve as the reference |
-| `run_suite.py` | The runner |
+| `ck.h` | `ck(id, ok)` prints `F<id>` on failure, `ck_done()` prints `N<count>.`; the `/* Pnnnn */` comment after each `ck()` names its paragraphs |
+| `t1_lex.c` | source form, comments, identifiers, tokens, literals, every operator (sections 4-17) |
+| `t2_types.c` | sizes, signedness, representation, alignment of globals and locals (static area and recursive frame), declarators, linkage, initializers, pointers (18-34) |
+| `t3_expr.c` | constant expressions, conversions, promotions, wrap, shifts, comparisons, pointer arithmetic, `sizeof`, lvalues (35-52) |
+| `t4_float.c` | 55 float literals compared byte for byte with the 48K ROM's own conversion (`romoracle.py`); folding vs run time; float parameters and results |
+| `t5_stmt.c` | evaluation order, calls, returns, locals, every statement |
+| `t6_pp.c`, `t6_*.h` | `#define`, `#include`, `<c48.h>` |
+| `t7_main.c` | `main(argc, argv)` and library calls |
+| `t8_status.c` | run-time traps and exit statuses (19 cases and a control) |
+| `t9_main.c`, `t9_mod.c` | separate compilation (`-c`), `rld`, SSA1 archives, linkage; `run_suite.py` adds further multi-unit link tests |
+| `t10_abi.c`, `t10_abi.s` | the calling convention against hand-written assembler |
+| `n1_lex.cases` .. `n4_pp.cases` | 481 programs that must be rejected (status 1, `rcc:` diagnostic, no output); `diag=REGEX` checks the wording; `deviation` marks an accepted documented deviation |
+| `p_accept.cases` | 47 programs that must build and exit 0 on both back ends (`may`: optional requirement, NOTE on failure) |
+| `dispositions.tsv` | why each paragraph without a test has none (HEADING, FRONT, INFO, SUMMARY, PROCESS, DOC, OTHER-IMPL, UNSPECIFIED, RESOURCE) |
+| `romoracle.py` | the ROM's float routines on the bundled plain z80-python core (and SkoolKit, when present) |
+| `run_suite.py` | the runner |
 
-Most programs are built with `--native` and with `--bytecode`, and run in `sdk/rvm.py`. t1–t7 are
-also loaded from an `rtap` cassette and run on ZX-UX itself; their screens must agree with the
-rvm runs. The float literal bytes are also checked on ZX-UX.
+Programs run as `--native` and `--bytecode` builds in `sdk/rvm.py`;
+with `--zxux`, t1-t7 also run on ZX-UX loaded from an `rtap` cassette, and
+their results must equal the rvm results.
 
-## Result (Rev 0.11 docx, tree at the commit that adds this suite)
+## Result
 
-These are the counts for the commit that adds this suite.
+Rev 0.11 docx, the fixed SDK (this commit), `--zxux`:
 
-- **Paragraphs:**
-  - 688 PASS;
-  - **49 FAIL**;
-  - 3 NOTE;
-  - 250 resolved without a test:
-    - 120 HEADING
-    - 37 OTHER-IMPL
-    - 29 INFO
-    - 25 PROCESS
-    - 22 DOC
-    - 7 FRONT
-    - 4 SUMMARY
-    - 4 UNSPECIFIED
-    - 2 RESOURCE
-- **Test executions:** 1562 in total: 1514 PASS, 46 FAIL and 2 NOTE.
+- **Paragraphs (990):** 737 PASS, 3 DEVIATION (P0044, P0045, P0049), 0 FAIL,
+  0 NOTE; 250 resolved without a test (120 HEADING, 37 OTHER-IMPL, 29 INFO,
+  25 PROCESS, 22 DOC, 7 FRONT, 4 SUMMARY, 4 UNSPECIFIED, 2 RESOURCE).
+- **Test executions:** 1579: 1578 PASS, 1 DEVIATION.
+- All 55 float literals equal the ROM's bytes on native, bytecode and
+  ZX-UX, with the ROM run on two independent emulators.
 
-All 55 float literals match the ROM on native, bytecode and ZX-UX. Results on ZX-UX are
-identical to the rvm results.
+**The one documented deviation:** rcc accepts bytes 0x80-0xFF inside
+comments (maintainer decision: the corpus's header comments carry a UTF-8
+`©`).  P0044/P0045/P0049 forbid them anywhere; `lex_high_byte` reports this
+as DEVIATION.  Outside comments such bytes, and CR, NUL, DEL and other
+control bytes everywhere, are rejected.
 
-### Deviations found (each FAIL in RESOLUTION.md)
+The deviations the first run of this suite found, all fixed in the SDK and
+each guarded by tests that fail on the old SDK:
 
-1. **Global alignment.**
-   - The deviation: when a global `int`, `short` or pointer object follows a `char` object, it
-     is placed at an odd address. The native build also places a global `unsigned int` array at
-     an odd address.
-   - Paragraphs: P0222, P0228, P0231, P0306, P0330. P0029, P0788 and P0919 fail as well,
-     because native and bytecode give different results here.
-   - Tests: `t2_types.c` ck2406–2409.
-   - Locals are aligned correctly.
-2. **A declaration is not visible within its own initializer.** `int g = sizeof g;` is rejected
-   with "undeclared identifier g" (P0270). `sizeof other` in an initializer is accepted (P0412).
-3. **Float `++` and `--` cannot be used as a value.** rcc reports "unsupported … by this back
-   end" (P0563–P0565, P1073).
-4. **A float parameter that is not the last parameter hangs at run time** (native and bytecode).
-   - Paragraphs: P0342, P0596, P0604, P0957, P1061, P1078.
-   - Cases: `ac_float_param_first` and `ac_float_params_two`.
-   - Likely cause: the float copy helper `@fmov` clobbers BC while BC holds the return address.
-5. **Bytecode separate compilation cannot link.**
-   - Every bytecode SSO1 defines the VM support symbols `@vmtab`, `@gs` and `@ct`, so linking two
-     of them reports duplicate symbols.
-   - Paragraphs: P0029, P0255–P0257, P0287, P0288, P0763, P0764, P0768, P0989, P1089.
-   - Tests: t9 (bytecode).
-   - `rld` names whichever duplicate it finds first (`@vmtab`, `@gs` or `@ct`). The order depends on
-     Python's hash seed, so the runner sets `PYTHONHASHSEED=0` to make the report repeatable.
-6. **An external function that is never called is dropped from an object that contains
-   `main`.** Another module calling that function then fails to link with "undefined: _helper"
-   (P0255, P0287, P0288, P0768).
-7. **Library link failures.**
-   - `udg_get` fails with undefined `_udg_define.cp`.
-   - A program whose only heap function is `free` fails with undefined `___heap`, `___heapsz`
-     and `___heapw`.
-   - Paragraphs: P0735, P0924, P1042.
-8. **`rcc -o x.c x.c` overwrites the source file** (P1085).
-9. **Constructs accepted that the spec says must be rejected.**
-   - A 0xE9 byte inside a comment (P0044, P0045, P0049).
-   - A local `int __x` (P0116).
-   - `static int f(void); extern int f(void);` (P0284, P0878).
-   - `<` or `>` between `void *` values (P0535, P1058).
-   - In the preprocessor:
-     - `#define A"x"`, with no space before the value (P0708);
-     - `#define const 3` (P0720);
-     - `#define _start 3` (P0116, P0720);
-     - a block comment that runs past the end of a directive line (P0701);
-     - `#include < c48.h >` (P0732);
-     - a 16-character macro name (P0085, P0087, P0716).
-10. **Function-like macros are rejected, but the diagnostic does not say "function-like"**
-    (P0708, P0741).
-
-The 3 NOTE paragraphs (P0317–P0319) come from one case: `NULL` is not defined by `<c48.h>`. The
-spec requires `NULL` only "once the declaration set is frozen", so this is reported as a NOTE,
-not a FAIL.
-
-The following items rest on a reading of the spec and could reasonably be argued the other way:
-
-- the 0xE9 byte in a comment: P0049 lists only ASCII as legal;
-- `#include < c48.h >`: P0732 gives the exact spelling;
-- the diagnostic wording for function-like macros.
+| Was | Fix | Paragraphs |
+|---|---|---|
+| global `int`/`short`/pointer objects after a `char` at odd addresses; locals aligned only by chance | `align_of()` in rcc (globals, static-area and frame locals, frames kept even, bytecode `@gs`); `ras` records section alignment in SSO1; `rld` honours it | P0222 P0228 P0231 P0306 P0330 |
+| `int g = sizeof g;` rejected | a name is visible from the end of its declarator (globals and locals) | P0270 |
+| float `++`/`--` as a value rejected; the statement form evaluated an operand such as `*p++` twice | new `gfinc`: address evaluated once, old/new value as required | P0563-P0565 P1073 |
+| a float parameter before the last one hung the program | the prologue keeps the return address across `@fmov` | P0342 P0596 P0604 P0957 P1061 P1078 |
+| two `-c --bytecode` objects did not link (`@vmtab`/`@gs`/`@ct` in each) | `-c` builds use the library's full dispatch table; no per-unit `@gs`/`@ct` | P0029 P0255-P0257 P0287 P0288 P0763 P0764 P0768 P0989 P1089 |
+| an uncalled external function or object dropped from a `-c` unit with `main` | `-c` keeps everything with external linkage | P0255 P0287 P0288 P0768 |
+| `udg_get` did not link; `free` alone did not link; UDG bank duplicated across units | `@udgcp` label; heap made when `malloc` or `free` is used; library default heap and UDG bank for `-c` programs | P0735 P0924 P1042 |
+| `rcc -o x.c x.c` overwrote the source; missing input or unwritable output gave a Python traceback | refused with status 2; `rcc:` messages, status 1, no partial output | P1085 P0773 P0782 P1087 |
+| accepted: local/parameter `__x`; `static` then `extern` function; `<` on `void *`; `#define A"x"`; `#define const 3`; `#define _start 3`; comment crossing a directive line; `#include < c48.h >`; 16-character macro names | each now rejected | P0116 P0284 P0535 P0701 P0708 P0720 P0732 P0085 P0087 P0716 |
+| function-like macro diagnostic unspecific | "function-like macro F is not supported" | P0708 P0741 |
+| `NULL` not defined | `#define NULL 0` in `<c48.h>` | P0317-P0319 |
 
 ## Method
 
@@ -152,7 +104,8 @@ The following items rest on a reading of the spec and could reasonably be argued
    - **Dispositions:** paragraphs with no test get an entry in `dispositions.tsv` saying why.
 2. The verdict for each paragraph is worked out as follows:
    - **FAIL** if any test tagged with it failed;
-   - **NOTE** if none failed but at least one `may` case did not succeed;
+   - **DEVIATION** if none failed but a `deviation` case was accepted;
+   - **NOTE** if none of those, but a `may` case did not succeed;
    - **PASS** if every tagged test passed;
    - otherwise, its disposition.
    - A paragraph with neither a test nor a disposition would show as UNRESOLVED; none do.
@@ -162,3 +115,6 @@ The following items rest on a reading of the spec and could reasonably be argued
    - every failing test was confirmed to be named in its paragraph's row.
 4. Every deviation was reproduced by hand before being reported. The expected values in the
    suite were checked against the spec text rather than against what rcc does.
+5. After the fixes, the new tests were also run against the old SDK: all fail
+   there except `ac_float_params_recursive`, a guard for the recursive-function
+   path, which was already right; so each fix is guarded.

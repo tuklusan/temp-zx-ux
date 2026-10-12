@@ -24,8 +24,11 @@ class Obj:
         ver, flags, nsec, nsym, strsz = struct.unpack_from('<BBHHI', data, 4)
         p = 14
         self.secs = []           # (kind, size, bytes or None, relocs)
+        self.aligns = []         # each section's alignment (a power of 2)
         for _ in range(nsec):
             kind, align, size, nrel = struct.unpack_from('<BBHH', data, p)
+            if align < 1 or align & (align - 1):
+                raise LinkError('%s: bad section alignment %d' % (name, align))
             p += 6
             body = None
             if kind != 3:
@@ -36,6 +39,7 @@ class Obj:
                 rel.append(struct.unpack_from('<HBBH', data, p))
                 p += 6
             self.secs.append((kind, size, body, rel))
+            self.aligns.append(align)
         syms = []
         for _ in range(nsym):
             syms.append(struct.unpack_from('<IBBH', data, p))
@@ -144,23 +148,23 @@ def link(objs, archives, entry='start', stack=384, heap=0, flags=0, org=None):
                 break
         if not added:
             raise LinkError('undefined: %s' % ', '.join(sorted(undef)))
-    # layout: text, data, bss
+    # layout: text, data, bss; each section starts at a multiple of its
+    # alignment (the image is loaded at an even address), gaps are zero
     base = {}
     addr = 0
+    image = bytearray()
     for kind in (1, 2, 3):
         for o in chosen:
             for i, (k, size, body, rel) in enumerate(o.secs):
                 if k == kind:
+                    addr += (-addr) % o.aligns[i]
                     base[(id(o), i + 1)] = addr
+                    if kind != 3:
+                        image += bytes(addr - len(image))
+                        image += body
                     addr += size
         if kind == 2:
             image_end = addr
-    image = bytearray()
-    for kind in (1, 2):
-        for o in chosen:
-            for i, (k, size, body, rel) in enumerate(o.secs):
-                if k == kind:
-                    image += body
     bss = addr - image_end
     # global symbol addresses
     gaddr = {}

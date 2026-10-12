@@ -75,9 +75,10 @@ sdk/bin/rcc game.c -o game.ssx
 sdk/bin/rtap -o game.tzx game.ssx
 ```
 
-The first command builds `sdk/lib/libc48.ssa`.
+The first command rebuilds `sdk/lib/libc48.ssa` (a built copy is checked in).
 The other commands compile a C48 program and make a cassette record.
-The C48 compiler uses SkoolKit's 48K ROM support.
+The SDK tools need only Python 3: the Z80 core that runs the 48K ROM for
+float constants and for `rvm` is bundled in `sdk/` (see `sdk/THIRD-PARTY.md`).
 
 On ZX-UX, type `/dev/cassette/game` and play the program tape.
 You can add program arguments after the name.
@@ -101,7 +102,7 @@ See `sdk/README.md` for details.
 
 ## Tests and snapshots
 
-SkoolKit 10.1 and Pillow are needed for the host-side emulator tests.
+SkoolKit 10.1 and Pillow are needed for the ZX-UX emulator tests (not for the SDK).
 The normal sequence is:
 
 ```sh

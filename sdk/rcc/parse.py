@@ -123,6 +123,11 @@ class Parser:
             return t.val
         self.err('expected identifier')
 
+    def not_reserved(self, name, tok=None):
+        # P0116: __-prefixed names and _start belong to the implementation
+        if (name.startswith('__') or name == '_start') and not self.lib:
+            self.err('reserved identifier %s' % name, 'declaration', tok)
+
     def check_tok(self):
         t = self.tok
         if t.kind == 'op' and t.val in UNSUPPORTED_OPS:
@@ -181,8 +186,7 @@ class Parser:
             where = self.tok.where
             ty = self.stars(bt)
             name = self.ident()
-            if (name.startswith('__') or name == '_start') and not self.lib:
-                self.err('reserved identifier %s' % name, 'declaration')
+            self.not_reserved(name)
             if self.isop('('):
                 ft, pnames = self.func_suffix(ty)
                 sym = self.declare_fn(name, ft, storage, where)
@@ -201,8 +205,26 @@ class Parser:
                     self.next()
                     if storage == 'extern':
                         self.err('extern object with initializer', 'declaration')
-                    init = self.initializer()
-                self.declare_global(name, ty, storage, init, where)
+                    # P0270: the name is in scope from the end of its declarator,
+                    # so its own initializer may use it (sizeof g, &g)
+                    pending = None
+                    if name not in self.globals and name != 'main':
+                        pending = Sym(name, 'var', ty, 'static' if storage == 'static' else 'global', where)
+                        pending.label = '_' + name
+                        self.globals[name] = pending
+                    try:
+                        init = self.initializer()
+                    finally:
+                        if pending is not None:
+                            del self.globals[name]
+                    s = self.declare_global(name, ty, storage, init, where)
+                    if pending is not None:
+                        # keep the object the initializer refers to
+                        pending.__dict__.update(s.__dict__)
+                        self.globals[name] = pending
+                        self.gvars[self.gvars.index(s)] = pending
+                else:
+                    self.declare_global(name, ty, storage, init, where)
             first = False
             if self.isop(','):
                 self.next()
@@ -250,6 +272,7 @@ class Parser:
             nm = None
             if self.tok.kind == 'id':
                 nm = self.ident()
+                self.not_reserved(nm)
             if self.isop('['):
                 self.err('array parameters are not C48 syntax', 'unsupported')
             params.append(pt)
@@ -270,8 +293,10 @@ class Parser:
         if s:
             if s.kind != 'fn' or s.ty != ft:
                 raise CError('conflicting declaration of %s' % name, where, 'declaration')
-            if (storage == 'static') != s.static_fn and storage != 'extern':
-                if storage == 'static' or s.static_fn:
+            if (storage == 'static') != s.static_fn:
+                # extern after an external declaration is a compatible redeclaration;
+                # anything else switches between internal and external linkage
+                if not (storage == 'extern' and not s.static_fn):
                     raise CError('linkage conflict for %s' % name, where, 'declaration')
             return s
         s = Sym(name, 'fn', ft, 'global', where)
@@ -458,6 +483,7 @@ class Parser:
                 w = self.tok.where
                 ty = self.stars(bt)
                 nm = self.ident()
+                self.not_reserved(nm)
                 if self.isop('('):
                     self.err('block-scope function declaration', 'unsupported')
                 if ty == 'void':
@@ -467,14 +493,16 @@ class Parser:
                 if nm in sc and (not fnbody or nm in params or sc[nm] in self.fn.locals):
                     self.err('redeclaration of %s' % nm, 'declaration')
                 init = None
-                if self.isop('='):
-                    self.next()
-                    init = self.initializer()
-                    ty = self.complete_array(ty, init, w)
-                elif is_arr(ty) and ty[2] is None:
-                    self.err('array without bound', 'type')
                 s = Sym(nm, 'var', ty, 'local', w)
                 s.fn = self.fn
+                if self.isop('='):
+                    self.next()
+                    sc[nm] = s          # P0270: visible in its own initializer
+                    init = self.initializer()
+                    ty = self.complete_array(ty, init, w)
+                    s.ty = ty
+                elif is_arr(ty) and ty[2] is None:
+                    self.err('array without bound', 'type')
                 self.fn.locals.append(s)
                 if init is not None:
                     items.extend(self.local_init(s, init, w))
@@ -970,6 +998,9 @@ class Parser:
                 if is_ptr(a.ty) and is_ptr(b.ty):
                     if a.ty != b.ty and not (op in ('==', '!=') and 'void' in (a.ty[1], b.ty[1])):
                         raise CError('comparison of incompatible pointers', where, 'type')
+                    if op not in ('==', '!=') and a.ty[1] == 'void':
+                        # P0535: relational operators need non-void object pointers
+                        raise CError('relational comparison of void pointers', where, 'type')
                 elif op in ('==', '!=') and (b.op == 'num' and b.v == 0 and is_int(b.ty) or a.op == 'num' and a.v == 0 and is_int(a.ty)):
                     pass
                 else:

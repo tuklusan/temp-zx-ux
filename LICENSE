@@ -306,7 +306,8 @@ defined in Section 0 below) and subject to the following conditions:
 ------------------------------------------------------------------------
 THIRD-PARTY NOTICE: SINCLAIR ZX SPECTRUM 48K ROM
 ------------------------------------------------------------------------
-The file rom/48.rom is the original 16,384-byte Spectrum 48K ROM. It is
+The file rom/48.rom (and its identical copy sdk/rom/48.rom, which the
+SDK tools use) is the original 16,384-byte Spectrum 48K ROM. It is
 not owned or relicensed by ZX-UX or the ZX-UX project licensor.
 Copyright in the original ROM remains with the original rights holder,
 historically Sinclair Research and subsequently Amstrad plc.
@@ -317,3 +318,13 @@ subject to the ZX-UX project license above.
 See the published Amstrad ROM permission statement:
 https://github.com/z00m128/zxs-rom/blob/master/LICENSE.md
 The checked ROM bytes have not been changed.
+
+
+------------------------------------------------------------------------
+THIRD-PARTY NOTICE: z80-python (sdk/z80_python/)
+------------------------------------------------------------------------
+sdk/z80_python/ is z80-python 0.4.0 by alewman
+(https://github.com/alewman/z80-python), unmodified, under the MIT
+License; its copyright notice and licence text are in
+sdk/z80_python/LICENSE. It is not subject to the ZX-UX project license
+above. See sdk/THIRD-PARTY.md.

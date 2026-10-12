@@ -132,6 +132,53 @@ unsigned int addr_of(void *pp)
     return b[0] + 256u * b[1];
 }
 
+/* 28.1: locals after 1-byte locals, in a static area (al_loc) and in a
+ * recursive function's frame (al_rec): the number of odd addresses */
+int al_loc(void)
+{
+    char c1;
+    int i1;
+    char c2;
+    short s1;
+    char c3;
+    char *p1;
+    void *v;
+    int bad;
+
+    c1 = 1;
+    c2 = 2;
+    c3 = 3;
+    bad = 0;
+    v = &i1;
+    bad = bad + addr_of(&v) % 2u;
+    v = &s1;
+    bad = bad + addr_of(&v) % 2u;
+    v = &p1;
+    bad = bad + addr_of(&v) % 2u;
+    return bad + c1 + c2 + c3 - 6;
+}
+
+int al_rec(int n)
+{
+    char c1;
+    int i1;
+    char c2;
+    short s1;
+    void *v;
+    int bad;
+
+    c1 = 1;
+    c2 = 2;
+    bad = 0;
+    v = &i1;
+    bad = bad + addr_of(&v) % 2u;
+    v = &s1;
+    bad = bad + addr_of(&v) % 2u;
+    if (n > 0)
+        bad = bad + al_rec(n - 1);
+    return bad + c1 + c2 - 3;
+}
+
 int main(void)
 {
     int x;
@@ -244,6 +291,8 @@ int main(void)
     vp = &g_i;
     cp = &g_c;
     ck(2413, addr_of(&vp) != addr_of(&cp));                             /* P1079 */
+    ck(2414, al_loc() == 0);                                            /* P0222 P0228 P0306 P0330 */
+    ck(2415, al_rec(3) == 0);                                           /* P0222 P0228 P0330 */
 
     /* 20: declarators */
     ck(2501, sizeof(dc_a) == 16 && sizeof(dc_b) == 16 && sizeof(dc_a[0]) == 2 && sizeof(dc_b[0][0]) == 2); /* P0236 P0237 P0877 P0235 P0238 */

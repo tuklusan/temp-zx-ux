@@ -574,7 +574,7 @@ _udg_define:
         pop de
         jp nc,@bad
         ex de,hl
-.cp:    ld bc,8
+@udgcp: ld bc,8                 ; (udg_get copies the other way from here)
         ldir
         jp @ok
 ; int udg_get(int slot, unsigned char *bytes)
@@ -587,7 +587,7 @@ _udg_get:
         call @slot
         pop de
         jp nc,@bad
-        j _udg_define.cp
+        j @udgcp
 ; int udg_clear(int slot)
 _udg_clear:
         call @slot

@@ -283,7 +283,8 @@ R1's target, 2.5 × the density of the C48 SDK's own native backend, is met: `ch
 
 ## 7. The ZX-UX VM (`rvm`)
 
-`rvm` runs the SSX1 file that goes to tape, on SkoolKit's C Z80 core with the real 48K ROM, T-state
+`rvm` runs the SSX1 file that goes to tape, on the SDK's bundled Z80 core (`sdk/zxcore.py`: z80-python
+with `sdk/z80fast.py`) and the real 48K ROM, T-state
 timing and 50 Hz frames. The ZX-UX system calls are emulated in Python:
 - `exit`, `read` (keyboard script or host files under `--root`), `write`, `open`/`close`/`seek`;
 - `break`, `stty`/`gtty`, `sleep` (in frames), `getpid`;

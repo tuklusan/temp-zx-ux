@@ -211,36 +211,55 @@ def g_run(R, programs):
     for name, _ in programs:
         a, b = outcome.get((name, 'native')), outcome.get((name, 'bytecode'))
         same = a is not None and a == b and outcome.get((name, 'native', 'L')) == outcome.get((name, 'bytecode', 'L'))
-        R.add('equiv:' + name, 'run', [29, 788, 919],
+        R.add('equiv:' + name, 'run', [29, 788, 919, 959],
               'PASS' if same else 'FAIL', 'native failed %s, bytecode failed %s' % (a, b))
     return outcome
 
 
+ORACLES = {}
+
+
+def oracle_bytes(expr):
+    """{engine: five bytes or RomError} for a t4 literal, from the ROM run on
+    every available Z80 engine (romoracle.engines())."""
+    from romoracle import Oracle, RomError, engines
+    out = {}
+    neg = expr.startswith('-')
+    lit = expr[1:] if neg else expr
+    for eng in engines():
+        o = ORACLES.setdefault(eng, Oracle(eng))
+        try:
+            if re.fullmatch(r'0[xX][0-9a-fA-F]+|[0-9]+', lit) and not lit.startswith('0') or lit == '0' \
+                    or re.fullmatch(r'0[xX][0-9a-fA-F]+', lit):
+                out[eng] = o.integer(-int(lit, 0) if neg else int(lit, 0))
+            else:
+                w = o.decimal(lit.rstrip('fF'))
+                out[eng] = o.negate(w) if neg else w
+        except RomError as e:
+            out[eng] = e
+    return out
+
+
 def g_float(R, src_text, text, be):
-    from romoracle import Oracle, RomError
-    o = Oracle()
     paras = [int(x) for x in PTAG.findall(src_text[:src_text.index('#include')])]
     got = {int(m.group(1)): bytes.fromhex(m.group(2).replace(' ', ''))
            for m in re.finditer(r'L(\d+)((?: [0-9a-f]{2}){5})', text)}
     for m in re.finditer(r'show\((\d+), (.+?)\);', src_text):
         lid, expr = int(m.group(1)), m.group(2).strip()
-        neg = expr.startswith('-')
-        lit = expr[1:] if neg else expr
-        try:
-            if re.fullmatch(r'0[xX][0-9a-fA-F]+|[0-9]+', lit) and not lit.startswith('0') or lit == '0' \
-                    or re.fullmatch(r'0[xX][0-9a-fA-F]+', lit):
-                want = o.integer(-int(lit, 0) if neg else int(lit, 0))
-            else:
-                want = o.decimal(lit.rstrip('fF'))
-                if neg:
-                    want = o.negate(want)
-        except RomError as e:
-            R.add('t4_float.c:L%d' % lid, 'float', paras, 'FAIL', '%s: ROM rejects it (%s)' % (expr, e), be)
+        res = oracle_bytes(expr)
+        want = res['z80python']
+        if any(repr(v) != repr(want) for v in res.values()):
+            R.add('t4_float.c:L%d' % lid, 'float', paras, 'FAIL', '%s: the Z80 engines disagree: %s'
+                  % (expr, {k: (v.hex(' ') if isinstance(v, bytes) else str(v)) for k, v in res.items()}), be)
+            continue
+        if not isinstance(want, bytes):
+            R.add('t4_float.c:L%d' % lid, 'float', paras, 'FAIL', '%s: ROM rejects it (%s)' % (expr, want), be)
             continue
         have = got.get(lid)
         ok = have == want
         R.add('t4_float.c:L%d' % lid, 'float', paras, 'PASS' if ok else 'FAIL',
-              '%s: rcc %s, ROM %s' % (expr, have.hex(' ') if have else None, want.hex(' ')), be)
+              '%s: rcc %s, ROM %s (%s)' % (expr, have.hex(' ') if have else None, want.hex(' '),
+                                           '+'.join(res)), be)
 
 
 T8 = re.compile(r'^ \*\s+(\d+):\s+(\d+)\s+(.*?)\s{2,}((?:P\d{4} ?)+)$', re.M)
@@ -328,6 +347,30 @@ def g_link(R):
         rc3, _, e3 = tool(RLD, ['-o', 'ex.ssx', 'ex_a.sso', 'ex_b.sso', LIB], cwd=d)
         R.add('t9:export_uncalled_function', 'link', [255, 287, 288, 768], 'PASS' if rc1 == rc2 == rc3 == 0 else 'FAIL',
               'compile %d/%d, link %d: %s' % (rc1, rc2, rc3, (e1 + e2 + e3).strip()[:120]), be)
+        # 79, B: library services that keep program-wide state (the heap, the
+        # UDG bank) work when they are used from several separately compiled
+        # units, and the heap when only one unit calls malloc
+        open(os.path.join(d, 'rt_a.c'), 'w').write(
+            'int udg_define(int slot, unsigned char *bytes);\nvoid *malloc(unsigned int n);\n'
+            'unsigned char pat[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };\n'
+            'char *mk(void)\n{\n    char *p;\n    p = malloc(10);\n    if (p == 0)\n        return 0;\n'
+            '    p[0] = 120;\n    if (udg_define(3, pat) != 0)\n        return 0;\n    return p;\n}\n')
+        open(os.path.join(d, 'rt_b.c'), 'w').write(
+            'int udg_get(int slot, unsigned char *bytes);\nvoid free(void *p);\nchar *mk(void);\n'
+            'int main(void)\n{\n    unsigned char b[8];\n    char *p;\n    p = mk();\n'
+            '    if (p == 0 || p[0] != 120)\n        return 2;\n'
+            '    if (udg_get(3, b) != 0 || b[0] != 1 || b[7] != 8)\n        return 3;\n'
+            '    free(p);\n    return 0;\n}\n')
+        rc1, _, e1 = rcc(['--' + be, '-c', '-o', 'rt_a.sso', 'rt_a.c'], cwd=d)
+        rc2, _, e2 = rcc(['--' + be, '-c', '-o', 'rt_b.sso', 'rt_b.c'], cwd=d)
+        rc3, _, e3 = tool(RLD, ['-o', 'rt.ssx', 'rt_a.sso', 'rt_b.sso', LIB], cwd=d)
+        why, status = None, None
+        if rc1 == rc2 == rc3 == 0:
+            why, status, _ = run_vm(open(os.path.join(d, 'rt.ssx'), 'rb').read())
+        R.add('t9:runtime_across_units', 'link', [288, 735, 768, 1042],
+              'PASS' if why == 'exit' and status == 0 else 'FAIL',
+              'compile %d/%d, link %d, ran %s status %s: %s' % (rc1, rc2, rc3, why, status,
+                                                                (e1 + e2 + e3).strip()[:120]), be)
 
 
 def g_abi(R):
@@ -403,7 +446,11 @@ def g_cases(R):
                 if ok and diag and not re.search(diag, err, re.I):
                     ok = False
                     why = 'rejected, but the diagnostic does not say %r' % diag
-                R.add(ident, 'neg', c['paras'], 'PASS' if ok else 'FAIL',
+                st = 'PASS' if ok else 'FAIL'
+                if not ok and rc == 0 and c['opts'].get('deviation'):
+                    # accepted on purpose: a documented maintainer decision
+                    st, why = 'DEVIATION', 'ACCEPTED (documented deviation, see README)'
+                R.add(ident, 'neg', c['paras'], st,
                       '%s: %s' % (why, err.strip().replace(d + os.sep, '')[:150]))
                 continue
             for be in BACKENDS:
@@ -534,8 +581,16 @@ def g_tool(R):
     shutil.copy(os.path.join(d, 'hello.c'), os.path.join(d, 'keep.c'))
     rc, out, err = rcc(['-o', 'keep.c', 'keep.c'], cwd=d)
     kept = open(os.path.join(d, 'keep.c'), 'rb').read() == hello.encode()
-    R.add('tool:no_source_overwrite', 'tool', [1085], 'PASS' if kept else 'FAIL',
-          'rcc -o keep.c keep.c: status %d, source %s' % (rc, 'kept' if kept else 'OVERWRITTEN'))
+    R.add('tool:no_source_overwrite', 'tool', [1085], 'PASS' if kept and rc != 0 and err.startswith('rcc:') else 'FAIL',
+          'rcc -o keep.c keep.c: status %d, source %s: %s' % (rc, 'kept' if kept else 'OVERWRITTEN', err.strip()))
+    # 81, 82: I/O failures are reported (status 1, "rcc:" message), never a
+    # traceback, and no output file claims success
+    rc, out, err = rcc(['missing.c'], cwd=d)
+    R.add('tool:missing_input', 'tool', [773, 1087], 'PASS' if rc == 1 and err.startswith('rcc:')
+          and 'Traceback' not in err else 'FAIL', 'status %d: %s' % (rc, err.strip()[:150]))
+    rc, out, err = rcc(['-o', os.path.join('no-such-dir', 'x.ssx'), 'hello.c'], cwd=d)
+    R.add('tool:unwritable_output', 'tool', [782, 1085, 1087], 'PASS' if rc == 1 and err.startswith('rcc:')
+          and 'Traceback' not in err else 'FAIL', 'status %d: %s' % (rc, err.strip()[:150]))
     # an empty translation unit is valid as -c; linking it without main fails
     open(os.path.join(d, 'empty.c'), 'w').write('/* nothing but a comment */\n')
     rc, out, err = rcc(['-c', 'empty.c'], cwd=d)
@@ -677,7 +732,8 @@ def resolve(R, paras, outdir):
             fails = sorted({'%s%s' % (t['id'], ' (%s)' % t['backend'] if t['backend'] else '')
                             for t in tests if t['status'] == 'FAIL'})
             notes = [t for t in tests if t['status'] == 'NOTE']
-            res = 'FAIL' if fails else 'NOTE' if notes else 'PASS'
+            devs = [t for t in tests if t['status'] == 'DEVIATION']
+            res = 'FAIL' if fails else 'DEVIATION' if devs else 'NOTE' if notes else 'PASS'
             groups = {}
             for t in tests:
                 g, _, name = t['id'].partition(':')
@@ -685,6 +741,8 @@ def resolve(R, paras, outdir):
             how = 'tested by ' + '; '.join('%s: %s' % (g, ', '.join(sorted(v))) for g, v in sorted(groups.items()))
             if fails:
                 how += ' | FAILED: ' + ', '.join(fails)
+            if devs:
+                how += ' | DEVIATION: ' + ', '.join(sorted({t['id'] for t in devs}))
             if notes:
                 how += ' | NOTE: ' + ', '.join(sorted({t['id'] for t in notes}))
             if why:
@@ -720,16 +778,21 @@ def write_md(R, rows, counts, outdir):
                os.path.relpath(SPEC, ROOT), SPEC_SHA), '',
            'Every non-empty paragraph of the specification has one row.  **PASS**: every test tagged '
            'with the paragraph passed; **FAIL**: at least one tagged test failed (the failing tests are '
-           'named); **NOTE**: only an optional or conditional requirement (MAY, or "once ... frozen") '
-           'was not met; other results are the dispositions in `dispositions.tsv` for paragraphs that state '
+           'named); **DEVIATION**: rcc deliberately differs from the paragraph, a documented maintainer '
+           'decision (README.md); **NOTE**: only an optional or conditional requirement (MAY, or "once ... '
+           'frozen") was not met; other results are the dispositions in `dispositions.tsv` for paragraphs that state '
            'no testable requirement of the compiler, linker or runtime.', '',
            '| Result | Paragraphs |', '|---|---|']
     for k in sorted(counts):
         out.append('| %s | %d |' % (k, counts[k]))
-    out += ['', 'Test executions: %d (%d failed).' % (len(R.results), len(fails)), '',
-            '## Failed tests', '', '| Test | Back end | Paragraphs | Detail |', '|---|---|---|---|']
-    for r in fails:
-        out.append('| %s | %s | %s | %s |' % (r['id'], r['backend'] or '-',
+    devs = [r for r in R.results if r['status'] == 'DEVIATION']
+    out += ['', 'Test executions: %d (%d failed, %d documented deviations).' % (len(R.results), len(fails), len(devs)),
+            '', '## Failed tests and documented deviations', '',
+            '| Test | Status | Back end | Paragraphs | Detail |', '|---|---|---|---|---|']
+    if not fails + devs:
+        out.append('| (none) | | | | |')
+    for r in fails + devs:
+        out.append('| %s | %s | %s | %s | %s |' % (r['id'], r['status'], r['backend'] or '-',
                    ' '.join('P%04d' % p for p in r['paras']), cell(r['detail'])[:200]))
     out += ['', '## Paragraphs', '', '| Para | Section | Result | Resolution | Text |', '|---|---|---|---|---|']
     for r in rows:

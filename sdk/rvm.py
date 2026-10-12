@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """rvm - the ZX-UX virtual machine: run an SSX1 C48 program on the host.
 
-The program runs on an emulated Z80 with the real 48K ROM; the ZX-UX kernel's
+The program runs on the SDK's bundled Z80 (zxcore.py: z80-python core and the
+real 48K ROM, no other dependencies); the ZX-UX kernel's
 system-call interface (call 6003h) is emulated in Python, including the C
 support calls (ticks, screen).  Floats and BEEP are the program's own calls
 into the ROM, run here as on the Spectrum.  What runs is the same SSX1 file
@@ -25,9 +26,8 @@ import struct
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-from skoolkit import CSimulator, ROM48, read_bin_file   # noqa: E402
-from skoolkit.simutils import from_memory               # noqa: E402
 import rld                                               # noqa: E402
+import zxcore                                            # noqa: E402
 
 FRAME = 69888
 SYS = 0x6003
@@ -39,8 +39,7 @@ NAMES = {0: 'rele', 1: 'exit', 3: 'read', 4: 'write', 5: 'open', 6: 'close',
 
 
 def font_bytes():
-    p = os.path.join(HERE, '..', 'src', 'font4x8.bin')
-    return open(p, 'rb').read()[8:8 + 384]
+    return open(zxcore.FONT, 'rb').read()[8:8 + 384]
 
 
 class Stop(Exception):
@@ -55,10 +54,10 @@ class Tracer:
         self.spk = 0
         self.edges = 0          # speaker (EAR/MIC bit 4) changes: BEEP
 
-    def read_port(self, registers, port):
+    def read_port(self, port):
         return 0xFF
 
-    def write_port(self, registers, port, value, *rest):
+    def write_port(self, port, value):
         if not port & 1:
             self.border = value & 7
             if (value ^ self.spk) & 0x10:
@@ -70,12 +69,12 @@ class VM:
     def __init__(self, ssx, args=(), keys=b'', root=None, fixed_ticks=None, load=0x8000):
         hdr = rld.parse_ssx(ssx)
         self.hdr = hdr
-        mem = [0] * 65536
-        rom = read_bin_file(ROM48)
-        mem[:len(rom)] = rom
-        mem[FONT:FONT + 384] = list(font_bytes())
+        self.tr = Tracer()
+        self.zx = zxcore.Spectrum(self.tr.write_port, self.tr.read_port)
+        mem = self.zx.mem
+        mem[FONT:FONT + 384] = font_bytes()
         img = rld.relocate(hdr['image'], hdr['relocs'], load)
-        mem[load:load + len(img)] = list(img)
+        mem[load:load + len(img)] = bytes(img)
         end = load + len(img) + hdr['bss'] + hdr['heap']
         argv0 = [b'prog'] + [a.encode() for a in args]
         # as ZX-UX's loader: image, bss, heap, stack, then the arguments
@@ -88,7 +87,7 @@ class VM:
         argv = [b'prog'] + [a.encode() for a in args]
         strs = b''.join(a + b'\0' for a in argv)
         sp = (top - len(strs)) & 0xFFFE
-        mem[sp:sp + len(strs)] = list(strs)
+        mem[sp:sp + len(strs)] = strs
         ptrs = []
         p = sp
         for a in argv:
@@ -102,11 +101,8 @@ class VM:
         self.load = load
         self.top = top
         self.brk = end
-        self.sim = from_memory(CSimulator, mem, {'SP': sp, 'PC': load + hdr['entry'], 'IY': 0x5C3A},
-                               {'iff': 0, 'im': 1})
-        self.mem = self.sim.memory
-        self.tr = Tracer()
-        self.sim.set_tracer(self.tr)
+        self.zx.set(sp=sp, pc=(load + hdr['entry']) & 0xFFFF, iy=0x5C3A, im=1)
+        self.mem = mem
         self.keys = list(keys)
         self.fixed_ticks = fixed_ticks
         self.root = root
@@ -132,31 +128,29 @@ class VM:
         return bytes(out)
 
     def frames(self):
-        return (self.sim.registers[25] + self.tbase) // FRAME
+        return (self.zx.t + self.tbase) // FRAME
 
     # ------------------------------------------------------------ run
     def run(self, max_frames=3000, trace=False):
-        r = self.sim.registers
+        zx = self.zx
         limit = max_frames * FRAME
         try:
             while True:
-                t = r[25] + self.tbase
+                t = zx.t + self.tbase
                 if t >= limit:
                     raise Stop('frames')
-                self.sim.trace(r[24], SYS, 0, min(r[25] + FRAME, limit - self.tbase), 0,
-                               None, None, None, None, None)
-                if r[24] == SYS:
+                if zx.run((SYS,), min(zx.t + FRAME, limit - self.tbase)):
                     self.syscall(trace)
         except Stop as s:
             self.status = s.status
             return s.why
 
     def syscall(self, trace):
-        r = self.sim.registers
-        a = r[0]
-        hl = r[6] << 8 | r[7]
-        de = r[4] << 8 | r[5]
-        bc = r[2] << 8 | r[3]
+        zx = self.zx
+        a = zx.a
+        hl = zx.hl
+        de = zx.de
+        bc = zx.bc
         self.syscalls += 1
         if trace:
             print('sys %s(%d) hl=%04x de=%04x bc=%04x' % (NAMES.get(a, '?'), a, hl, de, bc), file=sys.stderr)
@@ -178,14 +172,14 @@ class VM:
                 res = n
             elif hl in self.files:
                 f = self.files[hl]
-                data = f['data'][f['pos']:f['pos'] + bc]
-                self.mem[de:de + len(data)] = list(data)
+                data = f['data'][f['pos']:f['pos'] + min(bc, 0x10000 - de)]
+                self.mem[de:de + len(data)] = data
                 f['pos'] += len(data)
                 res = len(data)
             else:
                 err = EBADF
         elif a == 4:                     # write
-            data = bytes(self.mem[de:de + bc])
+            data = bytes(self.mem[de:min(de + bc, 0x10000)])
             if hl in (1, 2):
                 self.out += data
                 res = bc
@@ -233,26 +227,27 @@ class VM:
                 res = self.fixed_ticks
             else:
                 res = self.frames() & 0xFFFF
-            r[4] = r[5] = 0
+            zx.de = 0
         elif a == 39:                    # screen
             self.screen_owned = bool(hl)
             res = FONT if hl else 0
-            r[4] = r[5] = 0                 # DE = 0: the only owner
+            zx.de = 0                       # DE = 0: the only owner
         else:
             err = EINVAL
         # return from the call: result in HL, CF/A on error
+        cpu = zx.cpu
         if err is not None:
-            r[6], r[7] = 0xFF, 0xFF
-            r[0] = err
-            r[1] |= 1
+            zx.hl = 0xFFFF
+            cpu.a = err
+            cpu._f |= 1
         else:
-            r[6], r[7] = (res >> 8) & 255, res & 255
-            r[1] &= ~1
-            r[0] = 0
-        sp = r[12]
-        r[24] = self.rd(sp)
-        r[12] = (sp + 2) & 0xFFFF
-        r[25] += 200                      # system call overhead
+            zx.hl = res & 0xFFFF
+            cpu._f &= 0xFE
+            cpu.a = 0
+        sp = cpu.sp
+        cpu.pc = self.rd(sp)
+        cpu.sp = (sp + 2) & 0xFFFF
+        zx.t += 200                       # system call overhead
 
     # ------------------------------------------------------------ output
     def screen(self):

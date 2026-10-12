@@ -42,7 +42,7 @@ Building it does not need an external or retired C48 SDK.
 
 The main build needs only Python and the Z80 assembler.
 The test snapshot needs SkoolKit's `tap2sna.py`.
-The C48 compiler also uses SkoolKit for ROM-based float constants.
+The SDK (rcc, ras, rld, rtap, rvm) needs only Python 3: its Z80 core and ROM are bundled in sdk/.
 
 ## Build sequence
 

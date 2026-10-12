@@ -49,6 +49,7 @@ class Asm:
         self.globals = set()
         self.externs = set()
         self.lines = []
+        self.aligns = {}          # section -> required alignment (align directive)
 
     # ------------------------------------------------------------ parsing
     def load(self, text):
@@ -627,6 +628,10 @@ class Asm:
                     items = [fill & 255] * cnt
                 elif mn == 'align':
                     a = self.expr(ops[0], pc).v
+                    if a < 1 or a > 128 or a & (a - 1):
+                        raise AsmError('align needs a power of 2 up to 128')
+                    # the section itself must start this aligned (SSO1 align)
+                    self.aligns[sec] = max(self.aligns.get(sec, 1), a)
                     pad = (-pcs[sec]) % a
                     if sec == 'bss':
                         pcs[sec] += pad
@@ -739,7 +744,7 @@ class Asm:
                     rel.append(struct.pack('<HBBH', pos, 1, 0, sidx[base[1]]))
                 else:
                     rel.append(struct.pack('<HBBH', pos, 2, 0, symidx[base[1]]))
-            out += struct.pack('<BBHH', kind, 1, self.sizes[s], len(rel))
+            out += struct.pack('<BBHH', kind, self.aligns.get(s, 1), self.sizes[s], len(rel))
             if s != 'bss':
                 out += self.out[s]
             out += b''.join(rel)

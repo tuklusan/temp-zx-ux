@@ -383,3 +383,5 @@ int stdcall f(void); int main(void) { return 0; }
 //== kw_const_after_header P0932 P0928 P0933 diag=unsupported
 #include <c48.h>
 const int x; int main(void) { return 0; }
+//== res_double_underscore_param P0116
+int f(int __a) { return __a; } int main(void) { return f(0); }

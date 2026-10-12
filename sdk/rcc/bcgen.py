@@ -11,7 +11,7 @@ Its frame is the native recursive layout: [args 1..n-1][ret][old IX] <- IX,
 the last argument at IX-2, the saved instruction pointer at IX-4, locals
 below.  Functions that use floats stay native.
 """
-from .types import BYTE, is_int, is_ptr, is_arr, sizeof, signed
+from .types import BYTE, is_int, is_ptr, is_arr, sizeof, signed, align_of
 from .lex import CError
 from .z80gen import Gen, Func, isbyte
 from . import bcops
@@ -88,7 +88,12 @@ class BGen(Gen):
     # ------------------------------------------------------------ layout
     def analyze(self):
         super().analyze()
-        self.layout_gs()
+        # a separately compiled object (rcc -c) cannot own the program-wide
+        # @gs block, call table @ct or dispatch table @vmtab: it uses the
+        # library's full table (fixed opcode numbers) and plain global access
+        self.module = bool(self.opts.get('module'))
+        if not self.module:
+            self.layout_gs()
         mode = self.opts.get('bytecode', 'all')
         for f in self.p.funcs:
             if mode == 'none' or uses_float(f):
@@ -107,7 +112,7 @@ class BGen(Gen):
                     p.loc = ('fr', 4 + 2 * (n - 2 - i), 2)
             F.frame = 4
             for l in f.locals:
-                l.loc = self.frame_alloc(F, sizeof(l.ty))
+                l.loc = self.frame_alloc(F, sizeof(l.ty), align_of(l.ty))
         # functions called 3 times or more from bytecode: through @ct
         # (counted once the bytecode functions are known)
         count = {}
@@ -132,7 +137,8 @@ class BGen(Gen):
                     walk(v)
         for f in self.bc:
             walk(f.body)
-        self.ctab = ['_' + n for n, c in sorted(count.items(), key=lambda t: -t[1]) if c >= 3][:256]
+        self.ctab = [] if self.module else \
+            ['_' + n for n, c in sorted(count.items(), key=lambda t: -t[1]) if c >= 3][:256]
         self.cidx = {n: i for i, n in enumerate(self.ctab)}
 
     def function(self, f):
@@ -152,6 +158,7 @@ class BGen(Gen):
                 self.op('noret')
         else:
             self.op_ret()
+        F.frame += F.frame & 1          # keep SP even
         frame = F.frame - 4
         if frame < 255:
             self.emit('db %d' % frame)
@@ -874,7 +881,7 @@ class BGen(Gen):
         self.gs = {}
         self.gsvars = []
         text = super().generate()
-        if self.bc:
+        if self.bc and not self.module:
             text = '\tglobal @gs,@ct\n' + text
         return text
 
@@ -885,6 +892,8 @@ class BGen(Gen):
             if s.ty == 'float' or not isinstance(s.ty, str) and s.ty[0] != 'p':
                 continue
             n = sizeof(s.ty)
+            if align_of(s.ty) > 1:
+                off += off & 1          # @gs is word aligned
             if off + n > 256:
                 break
             self.gs[s.label] = off
@@ -893,9 +902,11 @@ class BGen(Gen):
 
     def data_lines(self):
         out = []
-        if self.bc:
-            out.append('@gs:')
+        if self.bc and not self.module:
+            out += ['\talign 2', '@gs:']
             for s in self.gsvars:
+                if align_of(s.ty) > 1:
+                    out.append('\talign 2')
                 out.append('%s:' % s.label)
                 if s.init is None:
                     out.append('\tds %d' % sizeof(s.ty))
@@ -918,6 +929,10 @@ class BGen(Gen):
     def calltable(self):
         if not self.bc:
             return []
+        if self.module:
+            # opcode numbers of the library's full table (bcops.OPS order)
+            return ['%s equ %d' % (opsym(n), bcops.OPCODE[n])
+                    for n, k in bcops.OPS if n in self.used_ops]
         return ['@ct:'] + ['\tdw %s' % f for f in self.ctab] + self.vmtable()
 
     def vmtable(self):
