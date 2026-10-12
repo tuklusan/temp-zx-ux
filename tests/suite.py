@@ -669,6 +669,41 @@ def kernel_fixes(s):
     s.expect('echo alive', 'alive')
 
 
+@test
+def beep_pitch(s):
+    """beep() at 12:34 on the status clock plays C4 then C5 (sdk float.asm)"""
+    s.login()
+    s.zx.mem[0x5C92] = 12           # tod_h, tod_m (dev.asm): past the first
+    s.zx.mem[0x5C93] = 34           # minute, BEEP used to read these bytes
+    tr = s.zx.tr
+    spk = []
+    plain = type(tr).write_port
+
+    def write_port(registers, port, value, *rest):
+        if not port & 1:
+            if (value ^ tr.outfe) & 0x10:
+                spk.append(registers[25])
+            tr.outfe = value
+        return plain(tr, registers, port, value, *rest)
+    tr.write_port = write_port
+    s.zx.sim.set_tracer(tr)
+    s.zx.type('/dev/cassette/beepck\n')
+    tr.edges = zxrun.tape_pulses(ssx_tape('beepck'), s.zx.sim.registers[25] + 350000)
+    s.until('beepck done', 6000)
+    if 'beep ok' not in s.screen():
+        raise Fail('beep failed:\n' + s.screen())
+    if s.zx.mem[0x5C92] != 12 or s.zx.mem[0x5C93] != 34:
+        raise Fail('clock bytes not put back: %d %d' % (s.zx.mem[0x5C92], s.zx.mem[0x5C93]))
+    gaps = [b - a for a, b in zip(spk, spk[1:])]
+    # half periods: C4 261.6 Hz is 6689 T-states, C5 3344; 0.1 s of each
+    # is about 51 and 104 of them (the key clicks are 540 T-states)
+    n1 = sum(1 for g in gaps if 6000 < g < 7400)
+    n2 = sum(1 for g in gaps if 3000 < g < 3700)
+    if not (46 <= n1 <= 56 and 98 <= n2 <= 110):
+        raise Fail('half periods: %d of C4, %d of C5; want about 51 and 104' % (n1, n2))
+    s.wait_prompt(3000)
+
+
 TESTS_BY_NAME = {f.__name__: f for f in TESTS}
 
 

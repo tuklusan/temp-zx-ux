@@ -9,6 +9,7 @@ ERRSP   equ 5C3Dh
 STKBOT  equ 5C63h
 STKEND  equ 5C65h
 MEMV    equ 5C68h
+MEMBOT  equ 5C92h
         section text
         global @fac,@fmov,@fop,@itof,@utof,@ftoi,@ftou,@fcmp,@ftst,@inrom,@ferr
         global _sin,_cos,_tan,_asin,_acos,_atan,_sqrt,_exp,_log,_fabs,_pow,_beep
@@ -255,11 +256,23 @@ _beep:  ex de,hl
         ld (@fy),de
         ld hl,.go
         call @inrom
+        ld hl,@mem0             ; the kernel's bytes back (CF kept)
+        ld de,MEMBOT
+        ld bc,5
+        ldir
         ld hl,0
         ret nc
         inc l
         ret
-.go:    ld hl,(@fx)
+; BEEP reads its integer pitch straight from MEMBOT (5C92h), not through
+; MEM, so mem-0 must be MEMBOT while it runs.  The kernel keeps its
+; clock there (tod_h, tod_m, tod_s, stdirty, kcon): save those 5 bytes.
+.go:    ld hl,MEMBOT
+        ld (MEMV),hl
+        ld de,@mem0
+        ld bc,5
+        ldir
+        ld hl,(@fx)
         call @fpush
         ld hl,(@fy)
         call @fpush
@@ -271,5 +284,6 @@ _beep:  ex de,hl
 @fy:    ds 2
 @fo:    ds 1
 @sv:    ds 8
+@mem0:  ds 5                    ; beep: MEMBOT as the kernel left it
 @cmem:  ds 30                   ; calculator memory (MEM)
 @cstk:  ds 60                   ; calculator stack (STKBOT..STKEND)
