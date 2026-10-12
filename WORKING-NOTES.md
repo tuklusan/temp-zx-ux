@@ -8,7 +8,7 @@ They do not claim a fresh test run.
 
 The 48K ZX Spectrum leaves little spare RAM.
 Keep the resident kernel at or below 8,192 bytes.
-The current kernel fills 8,191 bytes.
+The current kernel fills 8,165 bytes.
 The machine has four process slots and one terminal.
 All logins have the same user rights.
 
@@ -17,6 +17,9 @@ Their names start with `SS`: `SSO1`, `SSA1`, `SSX1`, `SSB1`, and `SST1`.
 Do not change a format without updating its readers and writers.
 
 Code changes must preserve the system call entry at `6003h`.
+A resident program's 8-byte header is `jr .+8`, stack reserve, bss size,
+entry. The stack reserve (at most `STKRES`) sizes the SAVE block that
+holds the program's stack while another program has the window.
 Use the Spectrum ROM where it is helpful.
 Keep the private checker outside the source and Git folders.
 
@@ -75,7 +78,7 @@ Repeat the tests after changes to the source.
 | `5B00h`–`5FFFh` | System data and low-memory work space |
 | `6000h`–`7FFFh` | Resident kernel, up to 8 KB |
 | `8000h` onward | Resident commands and text; end varies by build |
-| After resident text | 256-byte startup area, i-node table, and RAM file area |
+| After resident text | Startup area (boot code and messages, at least 256 bytes: later the zxpack model), i-node table, and RAM file area |
 | `F000h` onward | Execution window and process data |
 
 The build prints exact addresses.
