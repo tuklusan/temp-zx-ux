@@ -71,8 +71,8 @@ initarg_e:
 ; ---------------------------------------------------------------------
 panic:
         push hl
-        ld a,1
-        ld (kcon),a
+        xor a                   ; a screen owner must not hide the panic
+        ld (scrown),a
         ld hl,msg_panic
         call kputs
         pop hl
@@ -105,6 +105,8 @@ isr:
         push de
         push hl
         push ix
+        push iy
+        ld iy,05C3Ah            ; ROM KEYBOARD / KEY-INPUT need it
         exx
         ex af,af'
         push af
@@ -135,10 +137,9 @@ isr:
         call c,ttrawin
         ; BREAK (CAPS SHIFT + SPACE) = interrupt (v1 DEL)
         call ROM_BREAKKEY       ; NC = pressed
-        ld a,0
-        jr c,.b1
-        inc a
-.b1:    ld hl,brkst
+        sbc a,a                 ; FF released / 00 pressed
+        inc a                   ; 00 released / 01 pressed
+        ld hl,brkst
         cp (hl)
         ld (hl),a
         jr z,.b2
@@ -215,6 +216,7 @@ isr:
         pop af
         ex af,af'
         exx
+        pop iy
         pop ix
         pop hl
         pop de
@@ -297,8 +299,8 @@ stdraw:
         ld c,a                  ; slot: a 12 column cell each
 .p:     push bc
         ld a,c
-        ld hl,p_stat
-        call addhla
+        ld l,a                  ; p_stat is page aligned (KV)
+        ld h,p_stat >> 8
         ld e,(hl)
         ld a,(cur)              ; the running process in inverse
         cp c
@@ -380,8 +382,8 @@ stc:    push hl
 ; ---------------------------------------------------------------------
 ; isrun: A = C = slot -> Z if runnable
 isrun:
-        ld hl,p_stat
-        call addhla
+        ld l,a                  ; p_stat is page aligned (KV)
+        ld h,p_stat >> 8
         ld a,(hl)
         cp SRUN
         ret nz
@@ -433,10 +435,11 @@ swtch:
         push hl
         ld a,(inkern)
         push af
-        ld (tmpsp),sp
+        ld hl,0
+        add hl,sp
+        ex de,hl
         ld sp,KSTACK
         ld a,(cur)
-        ld de,(tmpsp)
         ld hl,p_sp
         call setw2
         call kmode
@@ -526,7 +529,6 @@ imgext: push af
         ld hl,(sw_lo)
         ld de,UASZ+STKRES
         add hl,de
-        ld (sw_n),hl
         ret
 
 ; ldirz: LDIR that does nothing for BC = 0
@@ -552,9 +554,15 @@ wsave:  push af
         ld hl,(sw_hi)
         ld de,STKRES+1
         call cphlde
-        ld hl,msg_stk
-        jp nc,panic
+        jr c,.ok
+        ld hl,STKRES            ; too deep for its SAVE: keep the newest
+        ld (sw_hi),hl           ; STKRES bytes, it dies when it resumes
         pop af
+        push af
+        ld hl,p_sig
+        call addhla
+        ld (hl),2
+.ok:    pop af
         push af
         call savead
         ld hl,UDATA
@@ -566,7 +574,6 @@ wsave:  push af
         call getw2
         pop de
         jr wload.xj0_5  ; (shared tail)
-msg_stk: db "stack",0
 
 ; wload: A = slot: its SAVE -> the window
 wload:  push af
@@ -591,8 +598,8 @@ wload:  push af
 ; swapout: A = slot leaving the processor -> its u-area into its SAVE
 swapout:
         ld c,a
-        ld hl,p_stat
-        call addhla
+        ld l,a                  ; p_stat is page aligned (KV)
+        ld h,p_stat >> 8
         ld a,(hl)
         or a
         ret z
@@ -625,7 +632,6 @@ swapin: ld c,a
         push bc
         call wload
         pop bc
-        jr .ua
 .ua:    ld a,c
         ld hl,p_save
         call getw2
@@ -659,8 +665,8 @@ ksleep:
         call addhla
         ld (hl),e
         ld a,(cur)
-        ld hl,p_stat
-        call addhla
+        ld l,a                  ; p_stat is page aligned (KV)
+        ld h,p_stat >> 8
         ld (hl),SSLEEP
         call setdirty
         call swtch
@@ -680,8 +686,8 @@ kwakeup:
         ret
 ; wakeslot: A = slot, C = channel
 wakeslot:
-        ld hl,p_stat
-        call addhla
+        ld l,a                  ; p_stat is page aligned (KV)
+        ld h,p_stat >> 8
         ld e,a
         ld a,(hl)
         cp SSLEEP
@@ -735,6 +741,8 @@ sigck:
 ; ---------------------------------------------------------------------
 sysent:
         push ix
+        push iy
+        ld iy,05C3Ah            ; ROM routines and RST 8 rely on it
         push af
         call kmode
         pop af
@@ -774,6 +782,7 @@ sysx:
         xor a
         ld (inkern),a
         pop af
+        pop iy
         pop ix
         ei
         ret
@@ -781,41 +790,35 @@ sysx:
 systab:
         dw sysrele, sysexit, sysfork, sysread, syswrite, sysopen
         dw sysclose, syswait, syscreat, syslink, sysunlink, sysexec
-        dw syschdir, systimec, sysmkdir, syschmod, sysemt, sysbreak
-        dw sysstat, sysseek, systell, badsys, badsys, sysemt
-        dw sysgetuid, sysstime, sysemt, sysintr, sysfstat, sysemt
-        dw sysmdate, sysstty, sysgtty, sysilgins, syssleep, syskill
+        dw syschdir, systimec, sysmkdir, syschmod, sysok, sysbreak
+        dw sysstat, sysseek, systell, badsys, badsys, sysok
+        dw sysgetuid, sysstime, sysok, sysintr, sysfstat, sysok
+        dw sysmdate, sysstty, sysgtty, sysok, syssleep, syskill
         dw sysgetpid, syszx, systicks, sysscreen, sysssxl
 
 ; ---------------------------------------------------------------------
 ;  process system calls  (u1/u2)
 ; ---------------------------------------------------------------------
 sysrele:                        ; give up the processor
-        di
-        call othrun
-        call z,swtch
-        ei
+        call preempt
         jr sysok
 
-sysemt:
-sysilgins:
-        jr sysok
 
 sysgetpid:
-        call mypid
-        jp sysok
-
+        ld hl,sysok
+        push hl
 mypid:  ld a,(cur)
         ld hl,p_pid
         jp getw2
 
 sysfork:
-        di
+        ; (no DI: other processes cannot run while we are in the kernel,
+        ;  and forkmem may pack files for a long time)
         ; a free slot, or the zombie of a child nobody waited for
         ld b,0
 .f:     ld a,b
-        ld hl,p_stat
-        call addhla
+        ld l,a                  ; p_stat is page aligned (KV)
+        ld h,p_stat >> 8
         ld a,(hl)
         or a
         jr z,.got
@@ -825,8 +828,8 @@ sysfork:
         ex de,hl
         ld b,0
 .z:     ld a,b
-        ld hl,p_stat
-        call addhla
+        ld l,a                  ; p_stat is page aligned (KV)
+        ld h,p_stat >> 8
         ld a,(hl)
         cp SZOMB
         jr nz,.zn
@@ -914,8 +917,8 @@ sysfork:
         ex af,af'
         ld a,1
         push af                 ; inkern = 1
-        ld (tmpsp),sp
-        ld hl,(tmpsp)
+        ld hl,0
+        add hl,sp
         ex de,hl
         ld a,c
         ld hl,p_sp
@@ -929,8 +932,8 @@ sysfork:
         add hl,sp
         ld sp,hl
         ld a,c
-        ld hl,p_stat
-        call addhla
+        ld l,a                  ; p_stat is page aligned (KV)
+        ld h,p_stat >> 8
         ld (hl),SRUN
         call setdirty
         ei
@@ -1017,11 +1020,8 @@ doexit:                         ; HL = status
         ld a,h
         or l
         jr nz,.z
-        ld hl,UDATA
-        ld a,(cur)
-        push hl
-        ld hl,p_brk
-        pop de
+        ld de,UDATA
+        call curbrk
         call setw2
         call uinit
         jp kinit
@@ -1054,8 +1054,8 @@ doexit:                         ; HL = status
         call curbrk
         call setw2
         ld a,(cur)
-        ld hl,p_stat
-        call addhla
+        ld l,a                  ; p_stat is page aligned (KV)
+        ld h,p_stat >> 8
         ld (hl),SZOMB
         ld a,WC_WAIT
         call kwakeup
@@ -1069,8 +1069,8 @@ syswait:
         ex de,hl
         ld bc,0                 ; B = slot, C = live children
 .s:     ld a,b
-        ld hl,p_stat
-        call addhla
+        ld l,a                  ; p_stat is page aligned (KV)
+        ld h,p_stat >> 8
         ld a,(hl)
         or a
         jr z,.n
@@ -1098,8 +1098,8 @@ syswait:
         call sigck
         jr .l
 .reap:  ld a,b
-        ld hl,p_stat
-        call addhla
+        ld l,a                  ; p_stat is page aligned (KV)
+        ld h,p_stat >> 8
         ld (hl),SFREE
         call setdirty
         ld a,b
@@ -1119,8 +1119,8 @@ syskill:                        ; HL = pid
         ex de,hl
         ld b,0
 .s:     ld a,b
-        ld hl,p_stat
-        call addhla
+        ld l,a                  ; p_stat is page aligned (KV)
+        ld h,p_stat >> 8
         ld a,(hl)
         cp SRUN
         jr c,.n
@@ -1142,8 +1142,8 @@ syskill:                        ; HL = pid
         call addhla
         ld (hl),2               ; 2 = kill (cannot be ignored)
         ld a,b
-        ld hl,p_stat
-        call addhla
+        ld l,a                  ; p_stat is page aligned (KV)
+        ld h,p_stat >> 8
         ld (hl),SRUN            ; wake it so it dies
 .xj0_10:
         ei
@@ -1564,12 +1564,12 @@ exname: ld a,(u_intr)
         inc hl
         inc de
         djnz .n1
-        jp setdirty
+        jr .n3
 .n2:    ld a,' '
         ld (de),a
         inc de
         djnz .n2
-        jp setdirty
+.n3:    jp setdirty
 
 ; tapnam: HL = path -> Z, HL = the name if it is /dev/cassette/NAME or
 ;   /dev/tap/NAME
@@ -1617,6 +1617,13 @@ KC_TOT  equ xhdr+2              ; bytes of memory: image .. arguments
 KC_IMG  equ xhdr+4              ; the IMAGE block
 KC_F    equ xhdr+6              ; the file, at the top of the block
 sysssxl:
+        call isssx              ; only a resident caller (/etc/ldx)
+        ld a,EINVAL
+        jp nz,syserr
+        ld h,d                  ; the file must fit the memory asked for
+        ld l,e
+        sbc hl,bc               ; (CF clear: isssx ends with OR)
+        jp c,syserr
         ld (KC_TOT),de
         ld (KC_ENT),bc
         ; ---- point of no return: the caller's image goes
@@ -1629,6 +1636,10 @@ sysssxl:
         call cursave            ; the SAVE keeps just the u-area
         ld bc,UASZ
         call ashrink
+        ld hl,(wlend)           ; window lent already: no second program
+        ld a,h                  ; may be placed in it (exec could not
+        or l                    ; take it back)
+        jr nz,.bad
         call acompact           ; all free space in one block: the image
         ld bc,(KC_TOT)          ; goes just above the movable ones
         push bc
@@ -1636,10 +1647,9 @@ sysssxl:
         call aalloc
         pop bc
         jr nc,.img
-        ld hl,(wlend)           ; no room: lend it the window
-        ld a,h
-        or l
-        jr nz,.bad
+        ld a,(u_intr)           ; no room: lend it the window - not to a
+        or a                    ; program BREAK cannot stop (background)
+        jr z,.bad
         push bc
         call lend
         pop bc
@@ -1725,6 +1735,11 @@ sysssxl:
         inc d
 .p:     push hl
         push de
+        ld hl,(u_tmp2)          ; the patched word must lie in the image
+        dec hl
+        call cphlde             ; (size-1) - offset
+        jp c,.bad
+        jp z,.bad
         ld hl,(KC_IMG)
         add hl,de
         ld de,(KC_IMG)
@@ -1912,6 +1927,10 @@ boot:
         ld bc,255
         ld (hl),0
         ldir
+        ld hl,MEMBOT            ; kernel scratch in MEMBOT: BASIC's
+        ld b,15                 ; calculator left values there
+        xor a
+        call zfill
         ; IM 2: vector FFFFh from the ROM, JR at FFFF -> JP isr at FFF4
         ld a,0C3h
         ld (TRAMP),a

@@ -159,8 +159,8 @@ ttrawin:
 ttintr:
         ld b,0
 .l:     ld a,b
-        ld hl,p_stat
-        call addhla
+        ld l,a                  ; p_stat is page aligned (KV)
+        ld h,p_stat >> 8
         ld a,(hl)
         or a
         jr z,.n

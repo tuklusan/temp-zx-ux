@@ -2,6 +2,7 @@
 ;  kernel globals - live in the ZX printer buffer (5B00-5BFF)
 ; =====================================================================
 p_stat  equ KV+0        ; byte[4]  process state
+        ASSERT (p_stat & 0FFh) == 0 && NPROC <= 256
 p_wchan equ KV+4        ; byte[4]  wait channel
 p_sig   equ KV+8        ; byte[4]  pending interrupt (BREAK) signal
 p_pid   equ KV+12       ; word[4]

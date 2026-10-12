@@ -368,10 +368,8 @@ lend:   ld hl,0FFFFh
         ret
 
 ; unlend: the window back, if no block is left in it (else it stays
-;   lent, wlend = FFFF, until the next image is freed)
-unlend: ld hl,0FFFFh
-        ld (wlend),hl
-        call acompact           ; free space slides to the top
+;   lent, wlend unchanged, until the next image is freed)
+unlend: call acompact           ; free space slides to the top
         ld de,(a_dst)           ; the top free block starts here
         ld hl,WINDOW
         or a
