@@ -47,7 +47,7 @@ SDK = os.path.join(ROOT, 'sdk')
 sys.path.insert(0, SDK)
 sys.path.insert(0, HERE)
 SPEC = os.path.join(ROOT, 'docs', '04-C48 Language Specification Rev 0.11.docx')
-SPEC_SHA = '577a93270fcd14efc13b4b2b2e6c7c08eaafd24efbd771199ed4a0278ec037ec'
+SPEC_SHA = '6368abb4126c01f598f4b533a4e2a0a46a7ce4790cce02d3decbfba59e150d7e'
 RCC = os.path.join(SDK, 'bin', 'rcc')
 RLD = os.path.join(SDK, 'bin', 'rld')
 RTAP = os.path.join(SDK, 'bin', 'rtap')
@@ -55,7 +55,8 @@ RAS = os.path.join(SDK, 'bin', 'ras')
 LIB = os.path.join(SDK, 'lib', 'libc48.ssa')
 BACKENDS = ('native', 'bytecode')
 PROGRAMS = [('t1_lex.c', []), ('t2_types.c', []), ('t3_expr.c', []), ('t4_float.c', []),
-            ('t5_stmt.c', []), ('t6_pp.c', []), ('t7_main.c', ['alpha', 'b'])]
+            ('t5_stmt.c', []), ('t6_pp.c', []), ('t7_main.c', ['alpha', 'b']),
+            ('t12_unix.c', [])]
 PTAG = re.compile(r'P(\d{4})')
 
 
@@ -374,25 +375,110 @@ def g_link(R):
 
 
 def g_abi(R):
-    src = open(os.path.join(HERE, 't10_abi.c')).read()
-    tags = ck_tags(src)
-    for be in BACKENDS:
-        d = os.path.dirname(R.path('x'))
-        copy_suite(d)
-        shutil.copy(os.path.join(HERE, 't10_abi.s'), d)
-        rc1, _, e1 = rcc(['--' + be, '-c', '-o', 'c.sso', 't10_abi.c'], cwd=d)
-        rc2, _, e2 = tool(RAS, ['-o', 's.sso', 't10_abi.s'], cwd=d)
-        rc3, _, e3 = (1, '', 'not linked') if rc1 or rc2 else tool(RLD, ['-o', 'abi.ssx', 'c.sso', 's.sso', LIB], cwd=d)
+    for prog in ('t10_abi', 't13_abi'):
+        src = open(os.path.join(HERE, prog + '.c')).read()
+        tags = ck_tags(src)
+        for be in BACKENDS:
+            d = os.path.dirname(R.path('x'))
+            copy_suite(d)
+            shutil.copy(os.path.join(HERE, prog + '.s'), d)
+            rc1, _, e1 = rcc(['--' + be, '-c', '-o', 'c.sso', prog + '.c'], cwd=d)
+            rc2, _, e2 = tool(RAS, ['-o', 's.sso', prog + '.s'], cwd=d)
+            rc3, _, e3 = (1, '', 'not linked') if rc1 or rc2 else tool(RLD, ['-o', 'abi.ssx', 'c.sso', 's.sso', LIB], cwd=d)
+            if rc1 or rc2 or rc3:
+                R.add(prog + ':build', 'abi', [p for v in tags.values() for p in v], 'FAIL',
+                      (e1 + e2 + e3).strip()[:150], be)
+                continue
+            why, status, text = run_vm(open(os.path.join(d, 'abi.ssx'), 'rb').read())
+            failed = {int(x) for x in re.findall(r'F(\d+)', text)}
+            m = re.search(r'N(\d+)\.', text)
+            ran = why == 'exit' and m and int(m.group(1)) == len(tags)
+            for cid in sorted(tags):
+                R.add('%s.c:ck%d' % (prog, cid), 'abi', tags[cid],
+                      'PASS' if ran and cid not in failed else 'FAIL', '' if ran else text[:100], be)
+    g_abi_mixed(R)
+    g_abi_codegen(R)
+
+
+MIX_A = """int bsum(int a, int b, int c);
+float bf(float x, int k);
+unsigned char bbyte(void);
+int nsum(int a, int b, int c)
+{
+    return a * 100 + b * 10 + c;
+}
+int main(void)
+{
+    return !(bsum(1, 2, 3) == 123 && bf(1.5, 2) == 5.0 && bbyte() == 200);
+}
+"""
+MIX_B = """int nsum(int a, int b, int c);
+int bsum(int a, int b, int c)
+{
+    return nsum(a, b, c);
+}
+float bf(float x, int k)
+{
+    x = x + 1.0;
+    return x * (float)k;
+}
+unsigned char bbyte(void)
+{
+    return 200;
+}
+"""
+
+
+def g_abi_mixed(R):
+    """ABI rule 11: a native object and a bytecode object call each other
+    (int arguments and result, a float argument before the last one, a float
+    and a byte result) - in both arrangements"""
+    d = os.path.dirname(R.path('x'))
+    open(os.path.join(d, 'mixa.c'), 'w').write(MIX_A)
+    open(os.path.join(d, 'mixb.c'), 'w').write(MIX_B)
+    for ba, bb in (('native', 'bytecode'), ('bytecode', 'native')):
+        rc1, _, e1 = rcc(['--' + ba, '-c', '-o', 'a.sso', 'mixa.c'], cwd=d)
+        rc2, _, e2 = rcc(['--' + bb, '-c', '-o', 'b.sso', 'mixb.c'], cwd=d)
+        rc3, _, e3 = (1, '', 'not linked') if rc1 or rc2 else tool(RLD, ['-o', 'mix.ssx', 'a.sso', 'b.sso', LIB], cwd=d)
         if rc1 or rc2 or rc3:
-            R.add('t10:build', 'abi', [p for v in tags.values() for p in v], 'FAIL',
-                  (e1 + e2 + e3).strip()[:150], be)
+            R.add('abi:mixed_%s_%s' % (ba, bb), 'abi', [600, 608], 'FAIL', (e1 + e2 + e3).strip()[:150])
             continue
-        why, status, text = run_vm(open(os.path.join(d, 'abi.ssx'), 'rb').read())
-        failed = {int(x) for x in re.findall(r'F(\d+)', text)}
-        ran = why == 'exit' and re.search(r'N(\d+)\.', text)
-        for cid in sorted(tags):
-            R.add('t10_abi.c:ck%d' % cid, 'abi', tags[cid],
-                  'PASS' if ran and cid not in failed else 'FAIL', '' if ran else text[:100], be)
+        why, status, text = run_vm(open(os.path.join(d, 'mix.ssx'), 'rb').read())
+        R.add('abi:mixed_%s_%s' % (ba, bb), 'abi', [600, 608],
+              'PASS' if why == 'exit' and status == 0 else 'FAIL', 'main %s calls %s: %s status %s' % (ba, bb, why, status))
+
+
+def g_abi_codegen(R):
+    """ABI rules 19 and 20: the code rcc generates (rcc -S, both back ends,
+    every suite program) and the runtime library never use IY and never
+    touch the alternate register set"""
+    pat = re.compile(r"\b(iy|iyh|iyl|exx)\b|af'", re.I)
+    d = os.path.dirname(R.path('x'))
+    copy_suite(d)
+    hits = []
+    n = 0
+    for name, _ in PROGRAMS + [('t10_abi.c', []), ('t13_abi.c', [])]:
+        for be in BACKENDS:
+            rc, _, err = rcc(['--' + be, '-S', '-o', 'g.s', name], cwd=d)
+            if rc:
+                hits.append('%s %s: %s' % (name, be, err.strip()[:60]))
+                continue
+            for ln in open(os.path.join(d, 'g.s')):
+                code = ln.split(';')[0]
+                n += 1
+                if pat.search(code):
+                    hits.append('%s %s: %s' % (name, be, code.strip()))
+    lib = []
+    for f in sorted(os.listdir(os.path.join(SDK, 'lib'))):
+        if f.endswith('.asm'):
+            for ln in open(os.path.join(SDK, 'lib', f)):
+                code = ln.split(';')[0]
+                if pat.search(code):
+                    lib.append('%s: %s' % (f, code.strip()))
+    R.add('abi:codegen_no_iy_no_alternates', 'abi', [623, 624, 625],
+          'PASS' if not hits else 'FAIL', '%d generated lines scanned; %s' % (n, hits[:3] or 'none use IY/EXX/AF\''))
+    R.add('abi:library_no_iy_no_alternates', 'abi', [623, 624, 625],
+          'PASS' if not lib else 'FAIL', lib[:3] or 'sdk/lib/*.asm: none')
 
 
 def parse_cases(path):
@@ -486,25 +572,63 @@ APPENDIX_B = ('getchar putchar puts cls print_at ink paper bright flash inverse 
               'malloc free sin cos tan asin acos atan sqrt exp log fabs pow open close read seek').split()
 
 
+# every ZX-UX system call (src/unix.asm systab) and its <c48.h> function;
+# 21 and 22 (v1 mount, umount) are not ZX-UX calls: the kernel rejects them
+KERNEL_CALLS = {0: 'yield', 1: 'exit', 2: 'fork', 3: 'read', 4: 'write', 5: 'open', 6: 'close',
+                7: 'wait', 8: 'creat', 9: 'link', 10: 'unlink', 11: 'exec', 12: 'chdir',
+                13: 'time', 14: 'mkdir', 15: 'chmod', 16: 'chown', 17: 'brk', 18: 'stat',
+                19: 'lseek', 20: 'tell', 23: 'setuid', 24: 'getuid', 25: 'stime', 26: 'quit',
+                27: 'intr', 28: 'fstat', 29: 'cemt', 30: 'mdate', 31: 'stty', 32: 'gtty',
+                33: 'ilgins', 34: 'sleep', 35: 'kill', 36: 'getpid', 37: 'zxpack', 38: 'ticks',
+                39: 'screen', 40: 'ssxload'}
+
+
+def kernel_systab():
+    """the call table as the kernel source has it: [label, ...] by number"""
+    src = open(os.path.join(ROOT, 'src', 'unix.asm')).read()
+    body = src[src.index('systab:'):]
+    out = []
+    for line in body.split('\n')[1:]:
+        line = line.split(';')[0].strip()
+        if not line.startswith('dw '):
+            break
+        out += [w.strip() for w in line[3:].split(',')]
+    return out
+
+
 def g_lib(R):
     funcs = header_functions()
     names = [f[1] for f in funcs]
+    # Appendix B records names; the header is authoritative (P1041) and also
+    # declares every other ZX-UX system call
     R.add('lib:inventory', 'lib', [1041, 1042, 735],
-          'PASS' if sorted(names) == sorted(APPENDIX_B) else 'FAIL',
-          'c48.h names vs Appendix B: missing %s, extra %s' % (
-              sorted(set(APPENDIX_B) - set(names)), sorted(set(names) - set(APPENDIX_B))))
+          'PASS' if set(APPENDIX_B) <= set(names) else 'FAIL',
+          'Appendix B names missing from c48.h: %s; c48.h adds %d more: %s' % (
+              sorted(set(APPENDIX_B) - set(names)), len(set(names) - set(APPENDIX_B)),
+              ' '.join(sorted(set(names) - set(APPENDIX_B)))))
+    tab = kernel_systab()
+    valid = [n for n, lab in enumerate(tab) if lab != 'badsys']
+    missing = [n for n in valid if KERNEL_CALLS.get(n) not in names]
+    R.add('lib:every_system_call', 'lib', [1041],
+          'PASS' if not missing and sorted(KERNEL_CALLS) == valid else 'FAIL',
+          'kernel calls %d (%s rejected), c48.h functions for all but %s' % (
+              len(tab), [n for n, lab in enumerate(tab) if lab == 'badsys'], missing))
+    R.add('lib:errno', 'lib', [1041], 'PASS' if re.search(r'^extern int errno;', open(
+        os.path.join(SDK, 'include', 'c48.h')).read(), re.M) else 'FAIL', 'c48.h declares extern int errno')
     hdr = open(os.path.join(SDK, 'include', 'c48.h')).read()
     R.add('lib:beep_prototype', 'lib', [925], 'PASS' if 'int beep(float duration, float pitch);' in hdr else 'FAIL',
           'c48.h declares int beep(float duration, float pitch)')
     arg = {'int': '0', 'unsigned int': '0u', 'float': '0.0', 'char *': '"x"',
-           'unsigned char *': 'ub', 'void *': 'vb'}
+           'unsigned char *': 'ub', 'void *': 'vb', 'char * *': 'pv', 'int *': 'iv',
+           'unsigned int *': 'uv'}
     for ret, name, params in funcs:
         types = []
         for p in params:
             t = p[:p.rindex('*') + 1] if '*' in p else ' '.join(p.split()[:-1])
             types.append(re.sub(r'\s*\*', ' *', t))
         call = '%s(%s)' % (name, ', '.join(arg[t] for t in types))
-        src = ('#include <c48.h>\nint z;\nunsigned char ub[8];\nchar vb[8];\n'
+        src = ('#include <c48.h>\nint z;\nunsigned char ub[8];\nchar vb[8];\nchar *pv[2];\n'
+               'int iv[2];\nunsigned int uv[2];\n'
                'int main(void)\n{\n    if (z)\n        %s;\n    return 0;\n}\n' % call)
         d = os.path.dirname(R.path('x'))
         open(os.path.join(d, 'lib.c'), 'w').write(src)
@@ -666,47 +790,92 @@ def g_zxux(R, outcome):
     if not os.path.exists(snap):
         R.add('zxux:snapshot', 'zxux', [], 'FAIL', 'build/test.z80 missing: build ZX-UX first')
         return
-    for name, args in PROGRAMS:
-        d = os.path.dirname(R.path('x'))
-        copy_suite(d)
-        out = os.path.join(d, name[:-2] + '.ssx')
-        rc, _, err = build(os.path.join(d, name), 'native', out)
-        tags = ck_tags(open(os.path.join(HERE, name)).read())
-        if rc:
-            R.add('zxux:' + name, 'zxux', [911, 1088], 'FAIL', err.strip())
-            continue
-        tname = name[:-2][:10]
+    import rvm
+
+    def zx_screen(ssx, tname, args):
+        """load SSX1 bytes from cassette, run them; the screen as text when
+        the program last gave the screen back (sys screen, A = 39, HL = 0:
+        sdk/lib/sys.asm _exit, also a failed exec) before its sys exit"""
         s = suite.Session(snap)
         s.login()
         s.zx.type('/dev/cassette/%s %s\n' % (tname, ' '.join(args)))
-        s.zx.tr.edges = zxrun.tape_pulses(rtap.records(open(out, 'rb').read(), tname),
-                                          s.zx.sim.registers[25] + 350000)
-        # the program's screen is read when its exit gives the screen back
-        # (sys screen, A = 39, HL = 0, in sdk/lib/sys.asm _exit)
-        import rvm
+        s.zx.tr.edges = zxrun.tape_pulses(rtap.records(ssx, tname), s.zx.sim.registers[25] + 350000)
         sim, r = s.zx.sim, s.zx.sim.registers
         text = ''
+        done = False
+        cur = suite.ksym('cur')
+        mine = None
         for _ in range(20000):
             end = r[25] + zxrun.FRAME
-            while r[25] < end and not text:
+            while r[25] < end and not done:
                 sim.trace(r[24], 0x6003, 0, end, 1, None, None, None, None, None)
                 if r[24] == 0x6003:
-                    if r[0] == 39 and r[6] == 0 and r[7] == 0:
+                    if r[0] == 39 and r[6] == 0 and r[7] == 1:
+                        mine = s.zx.mem[cur]            # the program's claim
+                    if r[0] == 39 and r[6] == 0 and r[7] == 0 and s.zx.mem[cur] == mine:
                         text = ''.join(l.ljust(64) for l in rvm.screen_text(bytes(s.zx.mem[0x4000:0x5B00])).split('\n'))
+                    if r[0] == 1 and s.zx.mem[cur] == mine:
+                        done = True
                     sim.trace(r[24], -1, 1, end, 1, None, None, None, None, None)
-            if text:
+            if done:
                 break
+        return text
+
+    def report(label, name, tags, text, rvm_failed):
         failed = {int(x) for x in re.findall(r'F(\d+)', text)}
         m = re.search(r'N(\d+)\.', text)
         ok = bool(m) and int(m.group(1)) == len(tags)
-        same = outcome is None or outcome.get((name, 'native')) == sorted(failed)
-        R.add('zxux:' + name, 'zxux', [770, 828, 911, 959, 1088],
+        same = rvm_failed is None or rvm_failed == sorted(failed)
+        R.add('zxux:' + label, 'zxux', [770, 828, 911, 959, 1088],
               'PASS' if ok and same else 'FAIL', 'checks %s, failed %s (rvm: %s)' % (
-                  m.group(1) if m else '?', sorted(failed), outcome.get((name, 'native')) if outcome else '-'))
+                  m.group(1) if m else '?', sorted(failed), rvm_failed if rvm_failed is not None else '-'))
         for cid in sorted(failed):
-            R.add('zxux:%s:ck%d' % (name, cid), 'zxux', tags.get(cid, []), 'FAIL', 'failed on ZX-UX')
-        if name == 't4_float.c':
-            g_float(R, open(os.path.join(HERE, name)).read(), text, 'zxux')
+            R.add('zxux:%s:ck%d' % (label, cid), 'zxux', tags.get(cid, []), 'FAIL', 'failed on ZX-UX')
+
+    for name, args in PROGRAMS:
+        tags = ck_tags(open(os.path.join(HERE, name)).read())
+        for be in (('native', 'bytecode') if name == 't12_unix.c' else ('native',)):
+            d = os.path.dirname(R.path('x'))
+            copy_suite(d)
+            out = os.path.join(d, name[:-2] + '.ssx')
+            rc, _, err = build(os.path.join(d, name), be, out)
+            label = name if be == 'native' else '%s(%s)' % (name, be)
+            if rc:
+                R.add('zxux:' + label, 'zxux', [911, 1088], 'FAIL', err.strip())
+                continue
+            text = zx_screen(open(out, 'rb').read(), name[:-2][:10], args)
+            report(label, name, tags, text, outcome.get((name, be)) if outcome else None)
+            if name == 't4_float.c':
+                g_float(R, open(os.path.join(HERE, name)).read(), text, 'zxux')
+    # the ABI programs (C + hand-written assembly, linked by rld) on ZX-UX
+    for prog in ('t10_abi', 't13_abi'):
+        tags = ck_tags(open(os.path.join(HERE, prog + '.c')).read())
+        for be in BACKENDS:
+            d = os.path.dirname(R.path('x'))
+            copy_suite(d)
+            shutil.copy(os.path.join(HERE, prog + '.s'), d)
+            rc1, _, e1 = rcc(['--' + be, '-c', '-o', 'c.sso', prog + '.c'], cwd=d)
+            rc2, _, e2 = tool(RAS, ['-o', 's.sso', prog + '.s'], cwd=d)
+            rc3, _, e3 = (1, '', '') if rc1 or rc2 else tool(RLD, ['-o', 'abi.ssx', 'c.sso', 's.sso', LIB], cwd=d)
+            label = '%s.c(%s)' % (prog, be)
+            if rc1 or rc2 or rc3:
+                R.add('zxux:' + label, 'zxux', [911, 1088], 'FAIL', (e1 + e2 + e3).strip()[:150])
+                continue
+            text = zx_screen(open(os.path.join(d, 'abi.ssx'), 'rb').read(), prog[:10], [])
+            report(label, prog + '.c', tags, text, None)
+            for cid in sorted(tags):
+                if cid not in {int(x) for x in re.findall(r'F(\d+)', text)} and re.search(r'N\d+\.', text):
+                    R.add('zxux:%s:ck%d' % (label, cid), 'zxux', tags[cid], 'PASS', 'on ZX-UX')
+    # ENV1 / ARG1 storage and lifetime on ZX-UX itself (tests/suite.py)
+    for tname, paras in (('env1_arg1_argv_example', [1080, 369, 370]),
+                         ('env1_isolation', [1080]), ('env1_exec', [1080]),
+                         ('env1_fresh', [1080])):
+        s = suite.Session(snap)
+        try:
+            suite.TESTS_BY_NAME[tname](s)
+            R.add('zxux:' + tname, 'zxux', paras, 'PASS', suite.TESTS_BY_NAME[tname].__doc__.split('\n')[0])
+        except suite.Fail as e:
+            R.add('zxux:' + tname, 'zxux', paras, 'FAIL', str(e)[:200])
 
 
 # ---------------------------------------------------------------- report

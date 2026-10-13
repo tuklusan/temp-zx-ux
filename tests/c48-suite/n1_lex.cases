@@ -3,15 +3,23 @@
 // line starts one case; run_suite.py compiles every case on its own and
 // requires rcc to reject it (status 1, "rcc:" diagnostic on stderr, no
 // output file).  <<XX>> stands for the byte with hexadecimal value XX.
-// Options after the paragraphs: diag=REGEX must match the diagnostic;
-// deviation: rcc accepts it on purpose (a documented maintainer decision,
-// see README.md), reported as DEVIATION rather than FAIL.
+// Options after the paragraphs: diag=REGEX must match the diagnostic.
+// (Any byte is allowed inside a comment, P0039/P0042/P0044/P0049: those
+// cases are in p_accept.cases.)
 //== lex_cr_byte P0044 P0045
 int main(void) { return 0;<<0D>> }
 //== lex_nul_byte P0044 P0045
 int main(void) { return 0; }<<00>>
-//== lex_high_byte P0044 P0045 P0049 deviation
-int main(void) { return 0; } /* <<E9>> */
+//== lex_high_byte P0044 P0045 P0049
+int main(void) { return 0; }<<E9>>
+//== lex_high_byte_ident P0044 P0049 P0083
+int ab<<E9>>c; int main(void) { return 0; }
+//== lex_del_byte P0044 P0045
+int main(void) { return<<7F>>0; }
+//== lex_nul_in_string P0044 P0175
+int main(void) { char *s; s = "a<<00>>b"; return 0; }
+//== lex_cr_in_char P0044 P0161
+int main(void) { return '<<0D>>'; }
 //== lex_utf8_string P0049 P0050
 int main(void) { char *s; s = "<<C3>><<A9>>"; return 0; }
 //== lex_bom P0048
@@ -211,9 +219,3 @@ int main(void) { int x; int y; x = 1, y = 2; return 0; }
 int main(void) { int i; int j; for (i = 0, j = 0; i < 2; i++) ; return 0; }
 //== op_fused_minus P0120 P0126
 int main(void) { int i; int j; i = 1; j = 2; return i--j; }
-//== lex_del_in_comment P0044 P0045
-int main(void) { return 0; } /* <<7F>> */
-//== lex_control_in_comment P0044 P0045
-int main(void) { return 0; } // <<01>>
-//== lex_cr_in_comment P0044 P0045
-int main(void) { return 0; } /* a<<0D>>b */

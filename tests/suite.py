@@ -810,6 +810,301 @@ def beep_pitch(s):
     s.wait_prompt(3000)
 
 
+# ---------------------------------------------------------------------
+#  ENV1 and ARG1 (C48 Rev 0.11 P1080, P0369, P0370), proved on ZX-UX
+#  itself: ENV1 is the C runtime's one-byte environment block in the
+#  program's own bss (crt0 makes it empty before main); ARG1 is the
+#  argument vector and strings the kernel builds at the top of the
+#  program's IMAGE block.  The memory is sampled at every frame.
+# ---------------------------------------------------------------------
+NPROC = 4
+
+
+def _w(m, a):
+    return m[a] | m[(a + 1) & 0xFFFF] << 8
+
+
+def _imgs(s):
+    """{slot: IMAGE payload address} of the SSX1 processes"""
+    m, base = s.zx.mem, ksym('p_img')
+    out = {}
+    for i in range(NPROC):
+        a = _w(m, base + 2 * i)
+        if a:
+            out[i] = a
+    return out
+
+
+def _cstr(m, a):
+    out = bytearray()
+    while m[a] and len(out) < 200:
+        out.append(m[a])
+        a += 1
+    return bytes(out)
+
+
+def _block_kind(s, addr):
+    """kind of the arena block that holds addr (free blocks merge lazily)"""
+    m = s.zx.mem
+    p, top = ksym('AR0'), kword(s, 'a_top')
+    while p < top:
+        size = _w(m, p)
+        if size < 4:
+            break
+        if p <= addr < p + size:
+            return m[p + 2]
+        p += size
+    return None
+
+
+def _start_program(s, name, ssx, args, first_tape=True):
+    """type /dev/cassette/NAME ARGS, play its records, run to its entry;
+    -> (slot, image, entry, SP at entry)"""
+    import rtap
+    import rld
+    hdr = rld.parse_ssx(ssx)
+    before = set(_imgs(s))
+    s.zx.type('/dev/cassette/%s%s\n' % (name, args))
+    s.zx.tr.edges = zxrun.tape_pulses(rtap.records(ssx, name), s.zx.sim.registers[25] + 350000)
+    return _run_to_entry(s, hdr, before)
+
+
+def _run_to_entry(s, hdr, before):
+    sim, r = s.zx.sim, s.zx.sim.registers
+    slot = img = None
+    for _ in range(9000):
+        new = {k: v for k, v in _imgs(s).items() if k not in before}
+        if new:
+            slot, img = sorted(new.items())[0]
+            break
+        s.zx.run(1)
+    else:
+        raise Fail('the program was not loaded:\n' + s.screen())
+    entry = img + hdr['entry']
+    for _ in range(9000):
+        end = r[25] + zxrun.FRAME
+        sim.trace(r[24], entry, 0, end, 1, None, None, None, None, None)
+        if r[24] == entry:
+            return slot, img, entry, r[12]
+        s.zx.frames += 1
+    raise Fail('the program did not start')
+
+
+def _env1_of(s, entry):
+    """crt0 begins 'xor a / ld (@env1),a': ENV1's address, from the image"""
+    m = s.zx.mem
+    if m[entry] != 0xAF or m[entry + 1] != 0x32:
+        raise Fail('crt0 does not start with the ENV1 set-up: %02X %02X' % (m[entry], m[entry + 1]))
+    return _w(m, entry + 2)
+
+
+def _arg1(s, sp):
+    m = s.zx.mem
+    argc = _w(m, sp)
+    vec = [_w(m, sp + 2 + 2 * i) for i in range(argc + 1)]
+    return argc, vec, [_cstr(m, a) for a in vec[:argc]]
+
+
+def _check_layout(s, img, sp, env1, ssx, want_args):
+    import rld
+    m = s.zx.mem
+    hdr = rld.parse_ssx(ssx)
+    blk = img - 4
+    blk_end = blk + _w(m, blk)
+    argc, vec, strs = _arg1(s, sp)
+    kargs = ksym('KARGS')
+    probs = []
+    if strs != want_args or vec[argc] != 0:
+        probs.append('argv %r (want %r), argv[argc] %04X' % (strs, want_args, vec[argc]))
+    bss0, bss1 = img + len(hdr['image']), img + len(hdr['image']) + hdr['bss']
+    if not bss0 <= env1 < bss1:
+        probs.append('ENV1 %04X not in the program bss %04X-%04X' % (env1, bss0, bss1))
+    if not img <= env1 < sp:
+        probs.append('ENV1 %04X not below ARG1 (SP %04X) in the image' % (env1, sp))
+    arg_lo = sp
+    arg_hi = max(a + len(t) + 1 for a, t in zip(vec, strs)) if strs else sp + 2
+    if not (sp < blk_end and arg_hi <= blk_end):
+        probs.append('ARG1 %04X-%04X not inside the block (end %04X)' % (arg_lo, arg_hi, blk_end))
+    if arg_lo <= env1 < arg_hi:
+        probs.append('ENV1 %04X inside ARG1 %04X-%04X' % (env1, arg_lo, arg_hi))
+    for a in vec[:argc] + [env1]:
+        if kargs <= a < kargs + 158 or a < 0x8000:
+            probs.append('%04X is in the kernel (KARGS %04X)' % (a, kargs))
+    if probs:
+        raise Fail('; '.join(probs))
+    return (arg_lo, arg_hi), vec, strs
+
+
+def _run_watch(s, slot, img, checks, frames=6000):
+    """run frame by frame, calling checks() each frame, until the slot's
+    IMAGE block is gone; -> exit status seen at sys exit"""
+    sim, r = s.zx.sim, s.zx.sim.registers
+    pimg = ksym('p_img') + 2 * slot
+    status = None
+    for _ in range(frames):
+        end = r[25] + zxrun.FRAME
+        while r[25] < end:
+            sim.trace(r[24], 0x6003, 0, end, 1, None, None, None, None, None)
+            if r[24] == 0x6003 and s.zx.mem[ksym('cur')] == slot:
+                if r[0] == 39 and r[6] == 0 and r[7] == 0:
+                    checks(final='release')     # it gives the screen back
+                if r[0] == 1:
+                    status = r[7]
+                    checks(final=True)
+                sim.trace(r[24], -1, 1, end, 1, None, None, None, None, None)
+        s.zx.frames += 1
+        if _w(s.zx.mem, pimg) != img:
+            return status
+        checks(final=False)
+    raise Fail('the program did not end')
+
+
+@test
+def env1_arg1_argv_example(s):
+    """programs/c48/examples/argv.c: ARG1 and ENV1 separate, process-owned,
+    intact for the program's life, gone with its image"""
+    from rcc import driver
+    s.login()
+    out = os.path.join(ROOT, 'build', 'ssx', 'argv.ssx')
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    if driver.main([os.path.join(ROOT, 'programs', 'c48', 'examples', 'argv.c'), '-o', out]):
+        raise Fail('rcc failed for argv.c')
+    ssx = open(out, 'rb').read()
+    slot, img, entry, sp = _start_program(s, 'argv', ssx, ' alpha beta')
+    env1 = _env1_of(s, entry)
+    want = [b'/dev/cassette/argv', b'alpha', b'beta']
+    (alo, ahi), vec, strs = _check_layout(s, img, sp, env1, ssx, want)
+    m = s.zx.mem
+    snap = bytes(m[alo:ahi])
+    seen = {'frames': 0}
+
+    def checks(final):
+        if m[env1] != 0:
+            raise Fail('ENV1 %04X changed: %02X' % (env1, m[env1]))
+        if bytes(m[alo:ahi]) != snap:
+            raise Fail('ARG1 %04X-%04X changed during the run' % (alo, ahi))
+        seen['frames'] += 1
+        if final == 'release':
+            seen['screen'] = s.screen()     # (before the console scrolls it)
+    status = _run_watch(s, slot, img, checks)
+    if status != 0:
+        raise Fail('argv exit status %r' % status)
+    if 'argv="alpha"' not in seen['screen'] or '/dev/cassette/argv' not in seen['screen']:
+        raise Fail('argv did not show its arguments:\n' + seen['screen'])
+    if _imgs(s).get(slot) or _block_kind(s, img - 4) != 0:
+        raise Fail('the image block (ENV1 and ARG1 in it) was not freed: kind %r' % _block_kind(s, img - 4))
+    if VERBOSE:
+        print('   ENV1 %04X, ARG1 %04X-%04X, image %04X, %d frames checked'
+              % (env1, alo, ahi, img, seen['frames']))
+
+
+def _env1_ssx():
+    import ras, rld
+    from rcc import driver
+    src = os.path.join(HERE, 'c', 'env1.c')
+    text, prog, g = driver.compile_to_asm(src, {'heap': 1024})
+    text += open(os.path.join(HERE, 'c', 'env1.s')).read()
+    obj = ras.assemble_text(text, 'env1.s')
+    libp = os.path.join(ROOT, 'sdk', 'lib', 'libc48.ssa')
+    return rld.link([rld.Obj(obj, 'env1')], [rld.read_archive(open(libp, 'rb').read(), libp)],
+                    'start', driver.stack_estimate(g), 0)[0]
+
+
+@test
+def env1_isolation(s):
+    """two processes at once: each has its own ENV1; one writing its own
+    does not touch the other's"""
+    s.login()
+    ssx = _env1_ssx()
+    m = s.zx.mem
+    slot_w, img_w, entry_w, sp_w = _start_program(s, 'env1', ssx, ' w &')
+    env_w = _env1_of(s, entry_w)
+    s.zx.run(20)
+    if m[env_w] != ord('X'):
+        raise Fail('env1 w did not write its ENV1')
+    slot_r, img_r, entry_r, sp_r = _start_program(s, 'env1', ssx, ' r')
+    env_r = _env1_of(s, entry_r)
+    if env_r == env_w or slot_r == slot_w:
+        raise Fail('ENV1 shared: %04X/%04X slots %d/%d' % (env_r, env_w, slot_r, slot_w))
+    if not _imgs(s).get(slot_w):
+        raise Fail('env1 w ended before env1 r started')
+
+    def checks(final):
+        if m[env_r] != 0:
+            raise Fail('ENV1 of env1 r changed: %02X' % m[env_r])
+        if _imgs(s).get(slot_w) == img_w and m[env_w] != ord('X'):
+            raise Fail('ENV1 of env1 w changed')
+    _run_watch(s, slot_r, img_r, checks)
+    for _ in range(600):
+        if not _imgs(s).get(slot_w):
+            break
+        s.wait(10)
+    s.key('ENTER')
+    s.wait_prompt(1000)
+    scr = s.screen()
+    for w in ('env1 r ok', 'env1 w ok'):
+        if w not in scr:
+            raise Fail('%r missing:\n%s' % (w, scr))
+
+
+@test
+def env1_exec(s):
+    """exec gives the new image a fresh, empty ENV1 (the old one is gone
+    with the old image), and ARG1 holds the exec's arguments"""
+    s.login()
+    ssx = _env1_ssx()
+    m = s.zx.mem
+    slot, img, entry, sp = _start_program(s, 'env1', ssx, ' x')
+    env_x = _env1_of(s, entry)
+    s.until('env1 x exec', 600)
+    # the exec runs /etc/ldx, which reads the tape again: play it again
+    import rld, rtap
+    before = set(_imgs(s)) - {slot}
+    s.zx.tr.edges = zxrun.tape_pulses(rtap.records(ssx, 'env1'), s.zx.sim.registers[25] + 350000)
+    slot2, img2, entry2, sp2 = _run_to_entry(s, rld.parse_ssx(ssx), before)
+    env_r = _env1_of(s, entry2)
+    _check_layout(s, img2, sp2, env_r, ssx, [b'/dev/cassette/env1', b'r'])
+    if env_r == env_x and m[env_r] != 0:
+        pass                    # (crt0 has not run yet: it empties it next)
+
+    def checks(final):
+        if m[env_r] != 0 and m[entry2] == 0xAF:
+            raise Fail('ENV1 %04X of the exec image is not empty: %02X' % (env_r, m[env_r]))
+    _run_watch(s, slot2, img2, checks)
+    s.wait_prompt(3000)
+    if 'env1 r ok' not in s.screen():
+        raise Fail('exec image did not run with an empty ENV1:\n' + s.screen())
+    if VERBOSE:
+        print('   ENV1 before exec %04X, after %04X (same address: %s)' % (env_x, env_r, env_x == env_r))
+
+
+@test
+def env1_fresh(s):
+    """a program that wrote its ENV1 ends; the next one loaded at the same
+    place starts with an empty ENV1"""
+    s.login()
+    ssx = _env1_ssx()
+    m = s.zx.mem
+    slot, img, entry, sp = _start_program(s, 'env1', ssx, ' q')
+    env_q = _env1_of(s, entry)
+    _run_watch(s, slot, img, lambda final: None)
+    s.wait_prompt(3000)
+    if m[env_q] != ord('X') and _block_kind(s, img - 4) != 0:
+        raise Fail('env1 q block not freed')
+    slot2, img2, entry2, sp2 = _start_program(s, 'env1', ssx, ' r')
+    env_r = _env1_of(s, entry2)
+    if env_r != env_q:
+        raise Fail('second load at %04X, not %04X: the test needs the same place' % (env_r, env_q))
+
+    def checks(final):
+        if m[env_r] != 0:
+            raise Fail('ENV1 not empty in the new process')
+    _run_watch(s, slot2, img2, checks)
+    s.wait_prompt(3000)
+    if 'env1 r ok' not in s.screen():
+        raise Fail('env1 r failed:\n' + s.screen())
+
+
 TESTS_BY_NAME = {f.__name__: f for f in TESTS}
 
 

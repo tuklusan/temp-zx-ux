@@ -1,5 +1,5 @@
 {
-  "spec_sha256": "577a93270fcd14efc13b4b2b2e6c7c08eaafd24efbd771199ed4a0278ec037ec",
+  "spec_sha256": "6368abb4126c01f598f4b533a4e2a0a46a7ce4790cce02d3decbfba59e150d7e",
   "format_version": 1,
   "description": "Each prose clause individually traced; no section-level pass inference.",
   "sections": [
@@ -640,8 +640,8 @@
       "section_title": "4. Canonical source representation",
       "classification": "required",
       "style": "First Paragraph",
-      "text_prefix": "Canonical C48 source is an 8-bit byte stream using ASCII source characters.",
-      "text_sha256": "32f500c0d95028eeda540ca3886ac3a1180ed85e43c2c99cb8741b5cc3fc233a"
+      "text_prefix": "Canonical C48 source is an 8-bit byte stream. Language tokens use ASCII source characters; comment contents may contain any byte value.",
+      "text_sha256": "4d43a032238fe34561bce654571f38a8a0b83197a486ebcc18effe2c88aa2c33"
     },
     {
       "paragraph_index": 40,
@@ -658,8 +658,8 @@
       "section_title": "4. Canonical source representation",
       "classification": "required",
       "style": "First Paragraph",
-      "text_prefix": "Portable C48 source MUST contain only:",
-      "text_sha256": "127a3c64038d0453e4aa63dcf355fa513f0dbcc411f50cd43c48e9b6f2378e52"
+      "text_prefix": "Outside comments, portable C48 source MUST contain only:",
+      "text_sha256": "2cec9451cee215e71fdbc2142246fad50071b4f22da0c37e491bdf5ca79c55f1"
     },
     {
       "paragraph_index": 44,
@@ -667,8 +667,8 @@
       "section_title": "4. Canonical source representation",
       "classification": "required",
       "style": "First Paragraph",
-      "text_prefix": "A canonical target-side C source object MUST NOT contain:",
-      "text_sha256": "0411720e019e3a98d08678c89894f303172c579b3969548ef2fbe426c7874b71"
+      "text_prefix": "Outside comments, a canonical C48 source object MUST NOT contain:",
+      "text_sha256": "19fefc1618d93f308e8318a3484e7dbe2cefd98fb32b9b9596c9a614305caf21"
     },
     {
       "paragraph_index": 46,
@@ -703,8 +703,8 @@
       "section_title": "4. Canonical source representation",
       "classification": "required",
       "style": "Body Text",
-      "text_prefix": "UTF-8 multibyte source text is not C48 Version 1.",
-      "text_sha256": "48bf84dad850dc84285e8e69138a11234afa0a96e0f29014bb7447492da8d138"
+      "text_prefix": "UTF-8 multibyte sequences and all other byte values are permitted only within /* ... */ and // comments. Outside comments, UTF-8 non-ASCII source characters are not valid C48 Version 1 tokens. Comment",
+      "text_sha256": "01cf7ce49dbdccd75f74b734734775405a92a442a6c95c07fcbf31afd6f4355f"
     },
     {
       "paragraph_index": 50,

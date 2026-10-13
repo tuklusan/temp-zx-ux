@@ -68,7 +68,7 @@ routines it reaches. Sizes below are each file's total, code + data:
 
 | Member | Bytes | Contents |
 |---|---|---|
-| `crt0` | 27 | `start`: argc/argv from the ZX-UX exec layout, screen claim, `main`, `exit` |
+| `crt0` | 32 | `start`: argc/argv from the ZX-UX exec layout, ENV1 made empty, screen claim, `main`, `exit` |
 | `sys` | 133 | `getchar` (raw keys), `ticks`, `yield`, `sleep`, `getpid`, `exit` (gives the screen and the keyboard back) |
 | `console` | 1,098 | `cls`, `putchar`, `puts`, `print_at`, `ink`, `paper`, `bright`, `flash`, `inverse`, `over`, `border`, `plot`, `point`, the UDG functions (`udg_define`/`get`/`draw`/`draw_2x2`/`clear`) over the program's own bank: rcc gives a program that calls them a bank of 32 slots (256 bytes), or N with `rcc --udgs N` (slots 0..N−1; a slot beyond is an error, as slot 32 is), drawn straight into the display file in the 4 × 8 font (the C48 SDK screen's semantics, 64 × 24) |
 | `gfx` (C48) | 802 | `draw` (Bresenham), `circle` |
@@ -78,13 +78,50 @@ routines it reaches. Sizes below are each file's total, code + data:
 | `arith` | 232 | 16-bit multiply, divide, modulo, shifts, signed compare |
 | `frame` | 65 | `@enter`, `@leave` |
 | `io` | 36 | `open`, `close`, `read`, `seek` (ZX-UX file calls) |
+| `unix` | 348 | every other ZX-UX system call (below), `errno` |
 | `vm` | 1,232 | the SSB1 interpreter (§6); the dispatch table is the program's |
 
-`sdk/include/c48.h` declares exactly these functions; `#include <c48.h>` gives it. The rest of the
-C48 Rev 0.11 name list is not provided, and using it is a link error: `spawn`, `wait`, `kill`,
-`chdir`, `getcwd`, `getenv`, `write`, `stat`, `remove`, `rename`, `list`, `pipe`, `dup`, `ioctl`,
-`read_full`, `write_full`, `tape_save`, `tape_load`, `time_get`, `time_set`, `open_typed`. No corpus
-program uses them (R1 review, SDK items 2 and 3).
+`sdk/include/c48.h` declares these functions; `#include <c48.h>` gives it. It also has a function
+for every other ZX-UX system call (the kernel's `systab`, `src/unix.asm`), in `unix.asm`:
+
+| Call | Function | Call | Function |
+|---|---|---|---|
+| 2 | `int fork(void)` — from C always −1, `EAGAIN` (SSX1 programs cannot fork) | 20 | `int tell(int h)` |
+| 4 | `int write(int h, void *p, unsigned int n)` | 23 | `int setuid(int uid)` (accepted) |
+| 7 | `int wait(int *status)` | 24 | `int getuid(void)` (0) |
+| 8 | `int creat(char *path, int mode)` | 25 | `int stime(unsigned int *t)` |
+| 9 | `int link(char *old, char *new)` | 26 | `int quit(int on)` (accepted) |
+| 10 | `int unlink(char *path)` | 27 | `int intr(int on)` |
+| 11 | `int exec(char *path, char **argv)` | 28 | `int fstat(int h, void *buf)` |
+| 12 | `int chdir(char *path)` | 29 | `int cemt(void *p)` (accepted) |
+| 13 | `int time(unsigned int *t)` — `t[0]` low, `t[1]` high | 30 | `int mdate(char *path, unsigned int *t)` |
+| 14 | `int mkdir(char *path, int mode)` | 31, 32 | `int stty(int h, void *buf)`, `int gtty(int h, void *buf)` |
+| 15 | `int chmod(char *path, int mode)` | 33 | `int ilgins(void *p)` (accepted) |
+| 16 | `int chown(char *path, int owner)` (accepted) | 35 | `int kill(int pid)` |
+| 17 | `int brk(void *addr)` | 37 | `unsigned int zxpack(char *path)`, `int zxinfo(unsigned int *info)` |
+| 18 | `int stat(char *path, void *buf)` — 34 bytes | 39 | `unsigned char *screen(int claim)` |
+| 19 | `int lseek(int h, int offset, int whence)` | 40 | `int ssxload(char **argv, unsigned int memory, unsigned int length)` — `/etc/ldx` only |
+
+Calls 0, 1, 3, 5, 6, 34, 36 and 38 are `yield`, `exit`, `read`, `open`, `close`, `sleep`, `getpid`
+and `ticks` above (`seek` is call 19 with whence 0). Calls 21 and 22 (v1 `mount`, `umount`) are not
+ZX-UX calls: the kernel answers `EINVAL`.
+
+**Results:** −1 on an error, with `extern int errno` set to the kernel's error number. A call with
+no result of its own returns 0 on success (the kernel leaves HL as it was for those). Results follow
+the kernel exactly. For example, as in v1, the `mkdir` call makes an empty directory: it has no `.`
+or `..` entries, because the `mkdir` command links those itself. `exec` gives the keyboard and the
+screen back first, and takes the screen again if the exec fails.
+
+**ENV1 (C48 Rev 0.11 P1080):** one byte of `crt0` bss (`@env1`), the program's own environment
+block, made empty (a NUL) before `main`. It is process-owned memory in the program's image, separate
+from ARG1 (the kernel-built `argv` strings at the top of the block) and never in the kernel's
+`KARGS`. It lives exactly as long as the image: an `exec` starts the new image with a fresh, empty
+ENV1, and exit frees it with the image. It costs no kernel bytes. C48 defines no `getenv`.
+`tests/suite.py` (`env1_*`) checks this on ZX-UX itself.
+
+The other C48 Rev 0.11 historical names (`spawn`, `getcwd`, `getenv`, `remove`, `rename`, `list`,
+`pipe`, `dup`, `ioctl`, `read_full`, `write_full`, `tape_save`, `tape_load`, `time_get`,
+`time_set`, `open_typed`) have no ZX-UX system call behind them and are not provided.
 
 **Language rules the runtime follows:**
 - A float error in arithmetic or a conversion ends the program with status 1.

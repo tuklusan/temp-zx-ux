@@ -252,7 +252,6 @@ P1045	HEADING	section heading; its requirements are the paragraphs that follow
 P1046	SUMMARY	lead-in for the Appendix C cases P1047-P1070, each tested on its own
 P1071	HEADING	section heading; its requirements are the paragraphs that follow
 P1075	HEADING	section heading; its requirements are the paragraphs that follow
-P1080	UNSPECIFIED	argument strings are read-only by contract only (no memory protection); argv contents and lifetime are tested at P0369/P0370 (t7)
 P1081	HEADING	section heading; its requirements are the paragraphs that follow
 P1086	INFO	states that rcc uses no on-device transaction; a future guarantee would need its own test. Failure-path output behaviour is tested (tool:error_no_object, tool:no_source_overwrite)
 P1091	HEADING	section heading; its requirements are the paragraphs that follow

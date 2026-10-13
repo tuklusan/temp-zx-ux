@@ -385,3 +385,15 @@ int stdcall f(void); int main(void) { return 0; }
 const int x; int main(void) { return 0; }
 //== res_double_underscore_param P0116
 int f(int __a) { return __a; } int main(void) { return f(0); }
+//== abi_cdecl P0609 P0610
+int __cdecl f(void); int main(void) { return 0; }
+//== abi_stdcall P0609 P0610
+int __stdcall f(void) { return 0; } int main(void) { return f(); }
+//== abi_fastcall P0609 P0610
+int __fastcall f(int a); int main(void) { return 0; }
+//== abi_attribute P0609 P0610
+int f(void) __attribute__((regparm(3))); int main(void) { return 0; }
+//== abi_regcall P0609 P0610
+int C48_REGCALL f(void); int main(void) { return 0; }
+//== abi_register_param P0609 P0610
+int f(register int a) { return a; } int main(void) { return f(1); }

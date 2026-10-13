@@ -19,7 +19,8 @@ sdk/bin/rtap -o hello.tzx hello.ssx
 Load `build/ZX-UX.tzx` and log in.
 Type `/dev/cassette/hello` in ZX-UX, then play `hello.tzx`.
 
-You can also test the same program on your host:
+You can also test the same program on your host (`rvm` keeps an
+in-memory file system for the run; `--root DIR` supplies files to read):
 
 ```sh
 sdk/bin/rvm hello.ssx --png hello.png --text
@@ -45,8 +46,11 @@ checked in built; `python3 sdk/lib/build.py` rebuilds it.
 C48 covers small integer types, five-byte Spectrum floats,
 functions, pointers, arrays, recursion, and a set of library calls.
 The runtime has a 64-column console, simple graphics,
-keyboard and timing calls, strings, and a small heap.
-See `include/c48.h` for the available functions.
+keyboard and timing calls, strings, a small heap, and a function
+for every ZX-UX system call (files, directories, processes, the
+clock, the terminal), with `errno`.
+See `include/c48.h` for the available functions and
+`docs/SPEC-SDK-R2.md` section 4 for their results.
 
 ## Run the examples
 

@@ -1,13 +1,10 @@
 /* ZX-UX suite: kernel fixes from the 2026-10 review, driven from an SSX1
- * program (the helpers in kfix.s make the calls the SDK does not have) */
+ * program (<c48.h> has every system call; kfix.s adds a raw sys ssxload
+ * with the arguments M1 needs, an IY probe and peek) */
 #include <c48.h>
 
-int creat(char *path, int mode);
-int write(int h, void *p, unsigned int n);
-int unlink(char *path);
-int ssxload(unsigned int len, unsigned int tot);
+int kssxl(unsigned int len, unsigned int tot);
 int iyprobe(char *buf);
-int exec(char *path, char **argv);
 int peek(unsigned int address);
 
 char buf[8];
@@ -47,7 +44,7 @@ int main(void)
     else print_at(4, 0, "unlink bad");
 
     /* M1: sys ssxload is refused to an SSX1 program */
-    n = ssxload(10, 5);
+    n = kssxl(10, 5);
     if (n == -1) print_at(5, 0, "ssxload ok"); else print_at(5, 0, "ssxload bad");
 
     /* M3: the clock interrupt does not write through a user IY */

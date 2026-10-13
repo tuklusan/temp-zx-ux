@@ -1,34 +1,14 @@
-; helpers for kfix.c: system calls the SDK library does not wrap.
+; helpers for kfix.c: a raw sys ssxload with M1's arguments, an IY probe
+; and peek (the other calls come from <c48.h> and the library).
 ; Same convention as sdk/lib/io.asm: last argument in HL, the others on
 ; the stack (pushed left to right), the callee removes them.
 SYS     equ 6003h
         section text
-        global _creat,_write,_unlink,_ssxload,_iyprobe,_exec,_peek
-_creat: pop bc
-        pop de
-        push bc
-        ex de,hl                ; HL = path, DE = mode
-        ld a,8
-        jp SYS
-_write: ld b,h                  ; BC = count
-        ld c,l
-        pop hl
-        pop de                  ; DE = buffer
-        ex (sp),hl              ; HL = handle
-        ld a,4
-        jp SYS
-_unlink: ld a,10
-        jp SYS
+        global _kssxl,_iyprobe,_peek
 _peek:  ld l,(hl)                ; peek(address): the byte there
         ld h,0
         ret
-_exec:  ex de,hl                ; DE = argv
-        pop bc
-        pop hl                  ; HL = path
-        push bc
-        ld a,11
-        jp SYS
-_ssxload: ex de,hl              ; DE = memory
+_kssxl: ex de,hl                ; DE = memory   (raw sys ssxload, M1)
         pop hl
         pop bc                  ; BC = length
         push hl

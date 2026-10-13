@@ -1,6 +1,7 @@
 /* ZX-UX SDK: the C48 library as ZX-UX provides it (SPEC-SDK-R2 section 4).
  * #include <c48.h> gives these prototypes; a program may also declare the
- * ones it uses itself, with exactly these types. */
+ * ones it uses itself, with exactly these types.  Every ZX-UX system call
+ * has a function here (the kernel's call number is in the comment). */
 #define NULL 0
 int getchar(void);
 int putchar(int c);
@@ -54,3 +55,39 @@ int open(char *path, int mode);
 int close(int h);
 int read(int h, void *p, unsigned int n);
 int seek(int h, unsigned int pos);
+
+/* The other ZX-UX system calls.  -1 on an error, with errno set to the
+ * kernel's error number (also for open, close, read and seek above). */
+extern int errno;
+int fork(void);                                     /*  2 SSX1: -1 EAGAIN */
+int write(int h, void *p, unsigned int n);          /*  4 */
+int wait(int *status);                              /*  7 */
+int creat(char *path, int mode);                    /*  8 */
+int link(char *old, char *new);                     /*  9 */
+int unlink(char *path);                             /* 10 */
+int exec(char *path, char **argv);                  /* 11 */
+int chdir(char *path);                              /* 12 */
+int time(unsigned int *t);                          /* 13 t[0] low, t[1] high */
+int mkdir(char *path, int mode);                    /* 14 */
+int chmod(char *path, int mode);                    /* 15 */
+int chown(char *path, int owner);                   /* 16 */
+int brk(void *addr);                                /* 17 */
+int stat(char *path, void *buf);                    /* 18 34-byte buffer */
+int lseek(int h, int offset, int whence);           /* 19 */
+int tell(int h);                                    /* 20 */
+int setuid(int uid);                                /* 23 */
+int getuid(void);                                   /* 24 */
+int stime(unsigned int *t);                         /* 25 */
+int quit(int on);                                   /* 26 */
+int intr(int on);                                   /* 27 */
+int fstat(int h, void *buf);                        /* 28 34-byte buffer */
+int cemt(void *p);                                  /* 29 */
+int mdate(char *path, unsigned int *t);             /* 30 */
+int stty(int h, void *buf);                         /* 31 6-byte buffer */
+int gtty(int h, void *buf);                         /* 32 6-byte buffer */
+int ilgins(void *p);                                /* 33 */
+int kill(int pid);                                  /* 35 */
+unsigned int zxpack(char *path);                    /* 37 */
+int zxinfo(unsigned int *info);                     /* 37 path NULL */
+unsigned char *screen(int claim);                   /* 39 */
+int ssxload(char **argv, unsigned int memory, unsigned int length); /* 40 */

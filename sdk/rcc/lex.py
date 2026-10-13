@@ -60,15 +60,11 @@ def _isid(c):
 
 
 def check_comment(text, fname, line):
-    """Spec 4 allows only TAB, LF and printable ASCII in source; rcc also
-    accepts bytes 0x80..0xFF inside comments (a maintainer decision, kept as
-    a documented deviation from P0044/P0049: e.g. a UTF-8 copyright sign in
-    a header comment).  Control bytes, CR, NUL and DEL stay errors there too."""
-    for k, c in enumerate(text):
-        if c == '\t' or c == '\n' or ' ' <= c <= '~' or ord(c) >= 0x80:
-            continue
-        what = 'CR' if c == '\r' else 'NUL' if c == '\0' else 'control byte 0x%02X' % ord(c)
-        raise CError('%s in a comment' % what, (fname, line + text.count('\n', 0, k)), 'lexical')
+    """Comment bytes are ignored: C48 Rev 0.11 (P0039, P0042, P0044, P0049)
+    permits any byte value inside /* ... */ and // comments - NUL, CR, other
+    control bytes and 0x80..0xFF included.  The byte rules apply outside
+    comments only."""
+    return
 
 
 def _bad_byte(c):
