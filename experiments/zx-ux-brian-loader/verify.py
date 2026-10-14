@@ -23,7 +23,8 @@ def parse(path):
     return b,blocks
 
 def tape_payload(path):
-    tape=Path(path).read_bytes();out=b'';p=0;CODE=[]
+    from build import source_tap
+    tape=source_tap(Path(path));out=b'';p=0;CODE=[]
     while p<len(tape):
         n=int.from_bytes(tape[p:p+2],'little');p+=2;h=tape[p:p+n];p+=n
         n=int.from_bytes(tape[p:p+2],'little');p+=2;d=tape[p:p+n];p+=n

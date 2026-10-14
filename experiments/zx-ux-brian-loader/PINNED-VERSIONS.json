@@ -21,5 +21,6 @@
   "segments": 24,
   "payload_bytes": 24802,
   "load_address": 24576,
-  "entry_address": 24576
+  "entry_address": 24576,
+  "note": "Historical 400ms-gap baseline. New gapless builds get their own release JSON, and a separate Fuse proof."
 }

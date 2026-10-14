@@ -21,7 +21,7 @@ SYNC1_T=875
 SYNC2_T=613
 ZERO_T=513         # each bit consists of two equal-length half-pulses
 ONE_T=1025
-PAUSE_MS=0  # no silence between turbo data blocks
+PAUSE_MS=0  # continuous turbo segments; zero pause in TZX 0x11 does not stop the tape
 PROG_NAME=b'ZX-UX UNIX'   # exactly 10 bytes, replaces ZQLOADER
 LOAD_CODE_NAME=b'ZX-UX BOOT'  # exactly 10 bytes
 TZX_MAGIC=b'ZXTape!\x1a\x01\x14'
@@ -97,6 +97,30 @@ def basic_program():
       +b':\xf9 \xc0 '+spectrum_int(LOADER_ADDR)+b'\x0d')
     line=struct.pack('>H',10)+struct.pack('<H',len(body))+body
     return line
+
+def source_tap(path:Path)->bytes:
+    """Read source Spectrum .tap or standard-speed .tzx as validated TAP records.
+
+    TZX input must contain only standard-speed data (0x10) blocks; rejecting
+    unsupported recording modes prevents silently discarding kernel bytes.
+    """
+    src=path.read_bytes()
+    if src[:8]!=b'ZXTape!\x1a':
+        return src
+    if len(src)<10:raise ValueError('truncated TZX header')
+    pos=10
+    tape=bytearray()
+    while pos<len(src):
+        kind=src[pos];pos+=1
+        if kind!=0x10:
+            raise ValueError(f'source TZX block 0x{kind:02x} unsupported; provide standard-speed TZX or TAP')
+        if pos+4>len(src):raise ValueError('truncated TZX standard header')
+        _pause,n=struct.unpack_from('<HH',src,pos);pos+=4
+        if n<2 or pos+n>len(src):raise ValueError('truncated TZX data block')
+        raw=src[pos:pos+n];pos+=n
+        if xor8(raw):raise ValueError('bad source TZX checksum')
+        tape.extend(struct.pack('<H',n));tape.extend(raw)
+    return bytes(tape)
 
 def check_source(tape:bytes):
     blocks=[];p=0
@@ -285,7 +309,7 @@ def main():
     parser.add_argument('--text',type=Path,default=ROOT/'text-lines.txt')
     parser.add_argument('--output',type=Path,default=ROOT/'output'/'zx-ux-brian-turbo.tzx')
     args=parser.parse_args()
-    data,meta=build(args.source.read_bytes(),args.text.read_text('ascii').splitlines())
+    data,meta=build(source_tap(args.source),args.text.read_text('ascii').splitlines())
     args.output.parent.mkdir(parents=True,exist_ok=True)
     args.output.write_bytes(data)
     args.output.with_suffix('.json').write_text(json.dumps(meta,indent=2)+'\n')

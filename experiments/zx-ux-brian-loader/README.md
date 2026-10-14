@@ -39,12 +39,12 @@ CODE layout, and progress lines are taken solely from your ZX-UX source.
   short pilot, 2042T pilot pulse, 875/613T sync and 513/1025T zero/one
   *half*-pulses (two half-pulses per bit). Each block includes the exact source
   bytes plus a one-byte XOR parity check; **no large pulse-stream blocks**.
-- One 400ms pause between blocks gives time for text printing.
+- All 24 turbo segments are continuous (0ms pause); their short 247-edge pilots allow progress text to be printed. Keep the original ROM-safe standard bootstrap pauses.
 - The helper draws direct to the 24-row Spectrum display bitmap; the ROM's
   special bottom two rows are handled correctly, including the final line.
 - Exactly one 250ms ROM beep, followed by 25 video-frame dwell cycles, then
   `JP 0x6000` (assuming a 50Hz Spectrum 48K clock).
-- The source CODE blocks must be contiguous from `0x6000` and fit below the
+- Each release's CODE blocks must be contiguous from `0x6000` and fit below the
   reserved stack at 0xCEFF. The original source's BASIC program is not copied;
   it is replaced by this loader program.
 
@@ -70,3 +70,14 @@ The Brian game tape was supplied by the user for reference; only technical
 framing and its loader's ROM-edge decoding method were adapted. The game
 payload is **not** redistributed as part of the generated ZX-UX TZX.
 See `reference/BRIAN-FRAMING.md` for the actual source-block timing values.
+
+## One-command reproducible updated releases
+
+Use `python3 release.py /path/to/updated-kernel-filesystem.tap --name ZX-UX-v1.1`.
+The source can be a normal-speed `.tap` or standard-speed TZX (0x10 blocks only).
+Outputs are `.tzx`, `.tzx.zip`, `.json` provenance and `.SHA256SUMS.txt`.
+`release.py` checks source bytes, parity, format, 24 rows, memory bounds, ZIP
+round-trip and unit tests. No pip, assembler, game tape, or ZQLoader is needed.
+The original pinned `RELEASE-VERIFIED.md` describes the former 400ms-gap build;
+the gapless version has separate Fuse proof at
+https://github.com/tuklusan/temp-zx-ux/actions/runs/38641939636 .

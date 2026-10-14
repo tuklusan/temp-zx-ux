@@ -35,9 +35,7 @@ jobs:
         run: |
           set -euo pipefail
           d=experiments/zx-ux-brian-loader
-          test "$(sha256sum "$d/ZX-UX.tap" | awk '{print $1}')" = '9ff03bfbfcd33cc11e9a4f45b4197b67f0abb347052957bc36b74102eaf09004'
-          test "$(sha256sum "$d/text-lines.txt" | awk '{print $1}')" = 'c487dbb686e03e4297cf15ba8ff31a32292932be102c95e81a61d7e2801ef269'
-          (cd "$d" && python3 build.py && python3 verify.py && python3 -m unittest -v test_build.py)
+          (cd "$d" && python3 build.py && python3 release.py && python3 verify.py && python3 -m unittest -v test_build.py)
           unzip -t "$d/output/zx-ux-brian-turbo.tzx.zip"
 
       - name: Install pinned real-speed Fuse + Sinclair ROM

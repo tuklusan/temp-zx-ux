@@ -1,3 +1,5 @@
+> Historical: the hashes and Fuse proof below are for the ORIGINAL 400ms-gap version, not the current gapless tape. Gapless runtime proof: https://github.com/tuklusan/temp-zx-ux/actions/runs/38641939636 .
+
 # ZX-UX simple Brian-timed loader: VERIFIED RELEASE
 
 **Real-speed Fuse 1.6.0 proof: PASS, 2026-10-14.**
