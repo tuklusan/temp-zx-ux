@@ -1,15 +1,17 @@
-Fuse PID=3289 Xvfb PID=3283
-runner      3283    3282  0 06:52 ?        00:00:00 Xvfb :99 -screen 0 1280x900x24
-runner      3289    3282  0 06:52 ?        00:00:00 fuse --machine 48 --rom-48 /tmp/zx-spectrum-roms/usr/share/spectrum-roms/48.rom --tape experiments/zx-ux-loader-6000-fuse/output/zx-ux-new-loader-test.tzx --no-auto-load --no-fastload --no-accelerate-loader --no-traps --no-detect-loader --no-sound --no-confirm-actions --debugger-command breakpoint 0x5ce7 breakpoint 0x0556 breakpoint 0x6000 breakpoint time 0 if spectrum:frames > 8000 commands 1 print 11111111 print z80:pc print z80:sp continue end commands 2 print 55555555 print z80:pc print z80:sp continue end commands 3 print 60006000 print z80:pc print z80:sp print [0x6000] print [0x6001] print [0x6002] print [0x6003] print [0x6004] print [0x6005] print [0x6006] print [0x6007] print [0x6008] print [0x6009] print [0x600a] print [0x600b] print [0x600c] print [0x600d] print [0x600e] print [0x600f] end commands 4 print 90909090 print z80:pc print z80:sp print [0x6000] print [0x6001] print [0x6002] print [0x6003] print [0x6004] print [0x6005] print [0x6006] print [0x6007] print [0x6008] print [0x6009] print [0x600a] print [0x600b] print [0x600c] print [0x600d] print [0x600e] print [0x600f] end continue
-runner      3292    3282  0 06:52 ?        00:00:00 grep -E fuse|Xvfb
-monitor_started=2026-10-14T06:52:10Z
-manual_tape_play=no_window
-poll=10 utc=2026-10-14T06:52:19Z bytes=708
-poll=20 utc=2026-10-14T06:52:29Z bytes=708
-poll=30 utc=2026-10-14T06:52:39Z bytes=708
-poll=40 utc=2026-10-14T06:52:49Z bytes=708
-poll=50 utc=2026-10-14T06:52:59Z bytes=708
-monitor_ended=2026-10-14T06:53:09Z result=LOADER_NEVER_ENTERED
-cleanup_complete=2026-10-14T06:53:09Z
+Fuse PID=3284 Xvfb PID=3278
+runner      3278    3277  0 06:54 ?        00:00:00 Xvfb :99 -screen 0 1280x900x24
+runner      3284    3277  0 06:54 ?        00:00:00 fuse --machine 48 --rom-48 /tmp/zx-spectrum-roms/usr/share/spectrum-roms/48.rom --tape experiments/zx-ux-loader-6000-fuse/output/zx-ux-new-loader-test.tzx --no-auto-load --no-fastload --no-accelerate-loader --no-traps --no-detect-loader --no-sound --no-confirm-actions --debugger-command breakpoint 0x5ce7 breakpoint 0x0556 breakpoint 0x6000 breakpoint time 0 if spectrum:frames > 8000 commands 1 print 11111111 print z80:pc print z80:sp continue end commands 2 print 55555555 print z80:pc print z80:sp continue end commands 3 print 60006000 print z80:pc print z80:sp print [0x6000] print [0x6001] print [0x6002] print [0x6003] print [0x6004] print [0x6005] print [0x6006] print [0x6007] print [0x6008] print [0x6009] print [0x600a] print [0x600b] print [0x600c] print [0x600d] print [0x600e] print [0x600f] end commands 4 print 90909090 print z80:pc print z80:sp print [0x6000] print [0x6001] print [0x6002] print [0x6003] print [0x6004] print [0x6005] print [0x6006] print [0x6007] print [0x6008] print [0x6009] print [0x600a] print [0x600b] print [0x600c] print [0x600d] print [0x600e] print [0x600f] end continue
+runner      3287    3277  0 06:54 ?        00:00:00 grep -E fuse|Xvfb
+monitor_started=2026-10-14T06:54:55Z
+manual_tape_play=window:2097153
+window_title=fuse
+manual_tape_play=typed_LOAD_and_F8
+poll=10 utc=2026-10-14T06:55:04Z bytes=708
+poll=20 utc=2026-10-14T06:55:15Z bytes=708
+poll=30 utc=2026-10-14T06:55:25Z bytes=708
+poll=40 utc=2026-10-14T06:55:35Z bytes=708
+poll=50 utc=2026-10-14T06:55:45Z bytes=708
+monitor_ended=2026-10-14T06:55:55Z result=LOADER_NEVER_ENTERED
+cleanup_complete=2026-10-14T06:55:55Z
 Result=LOADER_NEVER_ENTERED
-(fuse:3289): dbind-WARNING **: 06:52:14.662: AT-SPI: Error retrieving accessibility bus address: org.freedesktop.DBus.Error.ServiceUnknown: The name org.a11y.Bus was not provided by any .service files
+(fuse:3284): dbind-WARNING **: 06:54:59.330: AT-SPI: Error retrieving accessibility bus address: org.freedesktop.DBus.Error.ServiceUnknown: The name org.a11y.Bus was not provided by any .service files
