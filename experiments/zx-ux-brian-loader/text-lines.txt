@@ -1,0 +1,24 @@
+ZX-UX UNIX v1 / SPECTRUM 48K    
+(C) 2026 SANYALnet Labs         
+CPU: Z80 / 3.5 MHz              
+physical RAM: 48 KB             
+Spectrum ROM: 0x0000-0x3FFF     
+display RAM: 0x4000-0x5AFF      
+kernel base: 0x6000             
+kernel limit: 8192 bytes        
+system call entry: 0x6003       
+IM 2 set during kernel boot     
+frame interrupts: 50 Hz         
+console: 64 columns             
+keyboard: Spectrum matrix       
+RAM filesystem image            
+root directory: /               
+/bin /dev /etc /tmp /usr        
+devices: tty mem tap cassette   
+process slots: 4 maximum        
+first process: PID 1 init       
+program window: 0xF000          
+default date: 1982-04-23        
+default time: 00:00:00          
+no battery-backed clock         
+ZX-UX starts with login:        

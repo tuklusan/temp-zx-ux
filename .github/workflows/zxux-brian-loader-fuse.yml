@@ -1,0 +1,192 @@
+name: ZX-UX simple Brian-timed loader Fuse proof
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - experiments/zx-ux-brian-loader/**
+      - .github/workflows/zxux-brian-loader-fuse.yml
+      - '!experiments/zx-ux-brian-loader/output/**'
+
+# Only one active test and one pending test shared with the old project.
+concurrency:
+  group: zx-ux-project-main
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  DISPLAY: ':99'
+
+jobs:
+  fuse:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Verify build source and generated TZX
+        shell: bash
+        run: |
+          set -euo pipefail
+          d=experiments/zx-ux-brian-loader
+          test "$(sha256sum "$d/ZX-UX.tap" | awk '{print $1}')" = '9ff03bfbfcd33cc11e9a4f45b4197b67f0abb347052957bc36b74102eaf09004'
+          test "$(sha256sum "$d/text-lines.txt" | awk '{print $1}')" = 'c487dbb686e03e4297cf15ba8ff31a32292932be102c95e81a61d7e2801ef269'
+          (cd "$d" && python3 build.py && python3 verify.py && python3 -m unittest -v test_build.py)
+          unzip -t "$d/output/zx-ux-brian-turbo.tzx.zip"
+
+      - name: Install pinned real-speed Fuse + Sinclair ROM
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y \
+            fuse-emulator-sdl=1.6.0+dfsg1-2build3 \
+            libspectrum8=1.5.0-4build2 \
+            xvfb=2:21.1.12-1ubuntu1.8 \
+            openbox x11-utils x11-apps xdotool imagemagick
+          for bin in fuse-sdl Xvfb openbox xdotool xwininfo xprop convert; do
+            command -v "$bin"
+          done
+          rom_deb=/tmp/spectrum-roms_20081224-5_all.deb
+          curl --fail --location --retry 3 --max-time 90 \
+            https://archive.ubuntu.com/ubuntu/pool/multiverse/s/spectrum-roms/spectrum-roms_20081224-5_all.deb \
+            --output "$rom_deb"
+          echo "ef0aeda79444889debcff70b0260854203378ebe7b567d6d1b6d2577abe6d591  $rom_deb" | sha256sum -c
+          mkdir -p /tmp/zx-spectrum-roms
+          dpkg-deb --extract "$rom_deb" /tmp/zx-spectrum-roms
+          rom=/tmp/zx-spectrum-roms/usr/share/spectrum-roms/48.rom
+          test "$(stat --printf=%s "$rom")" -eq 16384
+          echo 'Sinclair 48K ROM:'; sha256sum "$rom"
+
+      - name: Prove 24 blocks, beep, 0x6000, and boot screen in real-time Fuse
+        shell: bash
+        run: |
+          set -euo pipefail
+          d=experiments/zx-ux-brian-loader/output
+          mkdir -p "$d"
+          Xvfb :99 -screen 0 1280x900x24 >"$d/xvfb.log" 2>&1 &
+          xvfb_pid=$!
+          sleep 1
+          openbox >"$d/openbox.log" 2>&1 &
+          wm_pid=$!
+          sleep 1
+          python3 - <<'PY' >"$d/debugger.txt"
+          import json
+          m=json.load(open('experiments/zx-ux-brian-loader/output/zx-ux-brian-turbo.json'))
+          labels=m['labels']
+          print('breakpoint 0xd000')
+          print('breakpoint 0x6000')
+          print(f"breakpoint 0x{labels['beep_call']:04x}")
+          print(f"breakpoint 0x{labels['jump_kernel']:04x}")
+          print('breakpoint time 0 if spectrum:frames > 12000')
+          print('commands 1\nprint 13131313\nprint z80:pc\ncontinue\nend')
+          print('commands 2\nprint 60006000\nprint z80:pc\nprint spectrum:frames')
+          for addr in range(0x6000,0x6010):print(f'print [0x{addr:04x}]')
+          print('continue\nend')
+          print('commands 3\nprint 25252525\nprint z80:pc\nprint z80:de\nprint z80:hl\ncontinue\nend')
+          print('commands 4\nprint 26262626\nprint z80:pc\nprint spectrum:frames\ncontinue\nend')
+          print('commands 5\nprint 90909090\nprint z80:pc\nprint spectrum:frames')
+          print(f"print [0x{labels['row']:04x}]")
+          print('end')
+          print('continue')
+          PY
+          cmd="$(cat "$d/debugger.txt")"
+          SDL_VIDEODRIVER=x11 SDL_AUDIODRIVER=dummy stdbuf -o0 -e0 fuse-sdl \
+            --machine 48 --rom-48 /tmp/zx-spectrum-roms/usr/share/spectrum-roms/48.rom \
+            --tape "$d/zx-ux-brian-turbo.tzx" \
+            --no-auto-load --no-traps --no-fastload --no-accelerate-loader --no-sound \
+            --no-confirm-actions --debugger-command "$cmd" \
+            >"$d/fuse.log" 2>&1 &
+          fuse_pid=$!
+          echo "Fuse=$fuse_pid Xvfb=$xvfb_pid openbox=$wm_pid" >"$d/diagnostics.txt"
+          (
+            if python3 experiments/zx-ux-brian-loader/input_xtest.py \
+                --display :99 --log "$d/keyboard.json" --output-dir "$d" >"$d/keyboard.log" 2>&1; then
+              echo 'xtest=PASS' >>"$d/diagnostics.txt"
+            else
+              echo 'xtest=FAIL' >>"$d/diagnostics.txt"
+            fi
+          ) &
+          keyboard_pid=$!
+          (
+            sleep 60
+            timeout -k 1s 5s xwd -root -silent -out "$d/progress-mid.xwd" || true
+            if test -s "$d/progress-mid.xwd"; then
+              timeout -k 1s 5s convert "$d/progress-mid.xwd" "$d/progress-mid.png" || true
+            fi
+          ) &
+          progress_pid=$!
+          (
+            for shot in $(seq 1 9000); do
+              if grep -qx '0x18152ad' "$d/fuse.log"; then
+                timeout -k 1s 4s xwd -root -silent -out "$d/last-line.xwd" || true
+                if test -s "$d/last-line.xwd"; then
+                  timeout -k 1s 4s convert "$d/last-line.xwd" "$d/last-line.png" || true
+                fi
+                break
+              fi
+              sleep 0.025
+            done
+          ) &
+          last_capture_pid=$!
+          result=NO_ENTRY
+          for i in $(seq 1 245); do
+            if grep -A1 '^0x3939e70$' "$d/fuse.log" | grep -qx '0x6000'; then
+              result=ENTRY_6000
+              break
+            fi
+            if grep -q '^0x56b29a2$' "$d/fuse.log"; then
+              result=TIMEOUT_BREAKPOINT
+              break
+            fi
+            if ! kill -0 "$fuse_pid" 2>/dev/null; then
+              result=FUSE_EXITED
+              break
+            fi
+            if (( i % 10 == 0 )); then
+              echo "poll=$i bytes=$(wc -c <"$d/fuse.log") utc=$(date -u +%FT%TZ)" >>"$d/diagnostics.txt"
+            fi
+            sleep 1
+          done
+          # CPU continues past 0x6000 so that ZX-UX can draw its boot screen.
+          if test "$result" = ENTRY_6000; then sleep 8; fi
+          echo "$result" >"$d/fuse-result.txt"
+          timeout -k 1s 5s xwd -root -silent -out "$d/fuse-final.xwd" || true
+          if test -s "$d/fuse-final.xwd"; then
+            timeout -k 1s 5s convert "$d/fuse-final.xwd" "$d/fuse-final.png" || true
+          fi
+          kill "$keyboard_pid" "$progress_pid" "$last_capture_pid" 2>/dev/null || true
+          kill -KILL "$fuse_pid" 2>/dev/null || true
+          kill "$wm_pid" "$xvfb_pid" 2>/dev/null || true
+          echo "Result=$result" >>"$d/diagnostics.txt"
+          cat "$d/fuse.log"
+          echo "Result $result"
+          test "$result" = ENTRY_6000
+          test "$(grep -cx '^0x18152ad$' "$d/fuse.log")" -eq 1 || { echo 'BEEPER breakpoint never reached'; exit 1; }
+          grep -q '^0x190bc62$' "$d/fuse.log" || { echo 'Final JP breakpoint never reached'; exit 1; }
+
+      - name: Persist generated TZX, proof, screenshots and hashes
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          d=experiments/zx-ux-brian-loader/output
+          sha256sum "$d"/zx-ux-brian-turbo.tzx "$d"/zx-ux-brian-turbo.tzx.zip "$d"/fuse.log > "$d/SHA256SUMS" || true
+          for img in "$d"/*.png; do
+            if test -f "$img"; then sha256sum "$img" >>"$d/SHA256SUMS"; fi
+          done
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin main
+          git reset --mixed origin/main
+          git add experiments/zx-ux-brian-loader/output
+          if ! git diff --cached --quiet; then
+            git commit -m 'ZX-UX: preserve Brian-style Fuse runtime proof'
+            git push origin HEAD:main
+          fi
