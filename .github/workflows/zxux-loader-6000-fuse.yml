@@ -37,7 +37,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y             fuse-emulator-gtk=1.6.0+dfsg1-2build3             libspectrum8=1.5.0-4build2             xvfb=2:21.1.12-1ubuntu1.6             x11-apps imagemagick
+          sudo apt-get install -y             fuse-emulator-gtk=1.6.0+dfsg1-2build3             libspectrum8=1.5.0-4build2             xvfb=2:21.1.12-1ubuntu1.8             x11-apps imagemagick
           fuse --version
 
       - name: Build corrected TZX
