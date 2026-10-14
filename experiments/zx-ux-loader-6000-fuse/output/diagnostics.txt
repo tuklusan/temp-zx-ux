@@ -1,18 +1,18 @@
-Fuse PID=3760 Xvfb PID=3736 WM PID=3740
-runner      3736    3735  1 14:52 ?        00:00:00 Xvfb :99 -screen 0 1280x900x24
-runner      3760    3735  0 14:52 ?        00:00:00 fuse-sdl --machine 48 --rom-48 /tmp/zx-spectrum-roms/usr/share/spectrum-roms/48.rom --tape experiments/zx-ux-loader-6000-fuse/output/zx-ux-new-loader-test.tzx --no-auto-load --no-traps --no-detect-loader --no-fastload --no-accelerate-loader --no-sound --no-confirm-actions --debugger-command breakpoint 0x5ce7 breakpoint 0x0556 breakpoint 0x6000 breakpoint time 0 if spectrum:frames > 10500 breakpoint write 0xffef if z80:pc > 0xff00 breakpoint write 0x6000 if z80:pc > 0x5c00 breakpoint event tape:play breakpoint event tape:stop commands 1 print 11111111 print z80:pc print z80:sp continue end commands 2 print 55555555 print z80:pc print z80:sp continue end commands 3 print 60006000 print z80:pc print z80:sp print [0x6000] print [0x6001] print [0x6002] print [0x6003] print [0x6004] print [0x6005] print [0x6006] print [0x6007] print [0x6008] print [0x6009] print [0x600a] print [0x600b] print [0x600c] print [0x600d] print [0x600e] print [0x600f] end commands 4 print 90909090 print z80:pc print z80:sp print spectrum:frames print 70707070 print [0xffef] print [0xfff0] print [0xfff1] print [0xfff2] print [0xfff3] print [0xfff4] print [0xfff5] print [0xfff6] print [0xfff7] print [0xfff8] print [0xfff9] print [0xfffa] print [0xfffb] print [0xfffc] print [0xfffd] print [0xfffe] print [0xffff] print [0x5ccb] print [0x5ccc] print [0x5ccd] print [0x5cce] print [0x5ccf] print [0x6000] print [0x6001] print [0x6002] print [0x6003] print [0x6004] print [0x6005] print [0x6006] print [0x6007] print [0x6008] print [0x6009] print [0x600a] print [0x600b] print [0x600c] print [0x600d] print [0x600e] print [0x600f] end commands 5 print 57575757 print z80:pc print [0xffef] print [0xfff0] print [0xfff1] print [0xfff2] continue end commands 6 print 60606060 print z80:pc print [0x6000] print [0x6001] continue end commands 7 print 73737373 print spectrum:frames continue end commands 8 print 83838383 print spectrum:frames continue end continue
-runner      3764    3762  0 14:52 ?        00:00:00 python3 experiments/zx-ux-loader-6000-fuse/input_xtest.py --display :99 --log experiments/zx-ux-loader-6000-fuse/output/keyboard.json --output-dir experiments/zx-ux-loader-6000-fuse/output
-runner      3765    3735  0 14:52 ?        00:00:00 grep -E fuse|Xvfb
-monitor_started=2026-10-14T14:52:49Z
-poll=10 utc=2026-10-14T14:52:58Z bytes=881
+Fuse PID=3704 Xvfb PID=3677 WM PID=3681
+runner      3677    3676  1 14:55 ?        00:00:00 Xvfb :99 -screen 0 1280x900x24
+runner      3704    3676  0 14:55 ?        00:00:00 fuse-sdl --machine 48 --rom-48 /tmp/zx-spectrum-roms/usr/share/spectrum-roms/48.rom --tape experiments/zx-ux-loader-6000-fuse/output/zx-ux-new-loader-test.tzx --no-auto-load --no-traps --no-detect-loader --no-fastload --no-accelerate-loader --no-sound --no-confirm-actions --debugger-command breakpoint 0x5ce7 breakpoint 0x0556 breakpoint 0x6000 breakpoint time 0 if spectrum:frames > 10500 breakpoint write 0xffef if z80:pc > 0xff00 breakpoint write 0x6000 if z80:pc > 0x5c00 commands 1 print 11111111 print z80:pc print z80:sp continue end commands 2 print 55555555 print z80:pc print z80:sp continue end commands 3 print 60006000 print z80:pc print z80:sp print [0x6000] print [0x6001] print [0x6002] print [0x6003] print [0x6004] print [0x6005] print [0x6006] print [0x6007] print [0x6008] print [0x6009] print [0x600a] print [0x600b] print [0x600c] print [0x600d] print [0x600e] print [0x600f] end commands 4 print 90909090 print z80:pc print z80:sp print spectrum:frames print 70707070 print [0xffef] print [0xfff0] print [0xfff1] print [0xfff2] print [0xfff3] print [0xfff4] print [0xfff5] print [0xfff6] print [0xfff7] print [0xfff8] print [0xfff9] print [0xfffa] print [0xfffb] print [0xfffc] print [0xfffd] print [0xfffe] print [0xffff] print [0x5ccb] print [0x5ccc] print [0x5ccd] print [0x5cce] print [0x5ccf] print [0x6000] print [0x6001] print [0x6002] print [0x6003] print [0x6004] print [0x6005] print [0x6006] print [0x6007] print [0x6008] print [0x6009] print [0x600a] print [0x600b] print [0x600c] print [0x600d] print [0x600e] print [0x600f] end commands 5 print 57575757 print z80:pc print [0xffef] print [0xfff0] print [0xfff1] print [0xfff2] continue end commands 6 print 60606060 print z80:pc print [0x6000] print [0x6001] continue end continue
+runner      3708    3706  0 14:55 ?        00:00:00 python3 experiments/zx-ux-loader-6000-fuse/input_xtest.py --display :99 --log experiments/zx-ux-loader-6000-fuse/output/keyboard.json --output-dir experiments/zx-ux-loader-6000-fuse/output
+runner      3709    3676  0 14:55 ?        00:00:00 grep -E fuse|Xvfb
+monitor_started=2026-10-14T14:55:16Z
+poll=10 utc=2026-10-14T14:55:25Z bytes=529
 xtest_input_sent=YES
 xtest_probe=COMPLETE
-poll=20 utc=2026-10-14T14:53:08Z bytes=4929
-poll=30 utc=2026-10-14T14:53:18Z bytes=8945
-poll=40 utc=2026-10-14T14:53:29Z bytes=12961
-poll=50 utc=2026-10-14T14:53:39Z bytes=16993
-monitor_ended=2026-10-14T14:53:49Z result=LOADER_NEVER_ENTERED_AFTER_INPUT
-cleanup_complete=2026-10-14T14:53:49Z
+poll=20 utc=2026-10-14T14:55:35Z bytes=529
+poll=30 utc=2026-10-14T14:55:45Z bytes=529
+poll=40 utc=2026-10-14T14:55:55Z bytes=529
+poll=50 utc=2026-10-14T14:56:05Z bytes=529
+monitor_ended=2026-10-14T14:56:15Z result=LOADER_NEVER_ENTERED_AFTER_INPUT
+cleanup_complete=2026-10-14T14:56:16Z
 Result=LOADER_NEVER_ENTERED_AFTER_INPUT
 {
   "result": "SENT",
