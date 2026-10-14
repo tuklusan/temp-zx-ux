@@ -74,21 +74,44 @@ def header_for(chunk, address, after):
     assert len(h) == 17
     return h
 
-def bit_pulses(data):
-    out = []
-    for b in data:
-        for bit in range(7, -1, -1):
-            out.append(ONE_T if ((b >> bit) & 1) else ZERO_T)
-    return out
+def generalized_data_block(data, pilot_symbols):
+    """Compact standard TZX 0x19 block for ZQLoader one-edge-per-bit data.
 
-def pulse_blocks(pulses):
-    out = bytearray()
-    for i in range(0, len(pulses), 255):
-        q = pulses[i:i+255]
-        out.append(0x13)
-        out.append(len(q))
-        out += struct.pack("<" + "H" * len(q), *q)
-    return out
+    pilot_symbols is a list of (pulse_lengths, repetitions).  Every symbol
+    toggles the EAR edge.  Data alphabet is exactly two symbols: zero and one,
+    one pulse per bit, so the byte stream can be stored verbatim in the TZX.
+    """
+    if not data:
+        raise ValueError("generalized data block needs data")
+
+    npp = max(len(pulses) for pulses, _ in pilot_symbols) if pilot_symbols else 0
+    asp = len(pilot_symbols)
+    totp = len(pilot_symbols)
+    totd = len(data) * 8
+    npd = 1
+    asd = 2
+
+    body = bytearray()
+    body += struct.pack("<H", 0)              # pause after block: 0 ms
+    body += struct.pack("<I", totp)
+    body += bytes([npp, asp])
+    body += struct.pack("<I", totd)
+    body += bytes([npd, asd])
+
+    # Pilot/sync alphabet and sequence.
+    for pulses, _ in pilot_symbols:
+        body.append(0)                        # Edge::toggle
+        padded = list(pulses) + [0] * (npp - len(pulses))
+        body += struct.pack("<" + "H" * npp, *padded)
+    for sym, (_, reps) in enumerate(pilot_symbols):
+        body += struct.pack("<BH", sym, reps)
+
+    # Data alphabet: symbol 0 = ZERO_T, symbol 1 = ONE_T.
+    body += struct.pack("<BH", 0, ZERO_T)     # Edge::toggle + pulse
+    body += struct.pack("<BH", 0, ONE_T)
+    body += data
+
+    return b"\x19" + struct.pack("<I", len(body)) + body
 
 def std_block(data, pause_ms):
     return b"\x10" + struct.pack("<HH", pause_ms, len(data)) + data
@@ -143,14 +166,24 @@ for i, n in enumerate(sizes):
     after = ENTRY if i == SEGMENTS - 1 else 0x0100
     header = header_for(chunk, addr, after)
 
-    # ZQLoader requires this exact framing around each logical segment:
-    # leader -> sync -> minisync -> 17-byte header -> minisync -> data.
-    pulses = [PILOT_T] * PILOT_EDGES
-    pulses += [SYNC_T, MINISYNC_T]
-    pulses += bit_pulses(header)
-    pulses += [MINISYNC_T]
-    pulses += bit_pulses(chunk)
-    tzx += pulse_blocks(pulses)
+    # Standard compact TZX representation used by ZQLoader itself:
+    #   0x19: leader + sync/minisync + 17-byte turbo header
+    #   0x19: minisync + payload bytes
+    # This represents the same physical edge stream without expanding every
+    # edge into a separate TZX pulse record.
+    tzx += generalized_data_block(
+        header,
+        [
+            ((PILOT_T,), PILOT_EDGES),
+            ((SYNC_T, MINISYNC_T), 1),
+        ],
+    )
+    tzx += generalized_data_block(
+        chunk,
+        [
+            ((MINISYNC_T,), 1),
+        ],
+    )
 
     if i != SEGMENTS - 1:
         tzx += pause_block(INTER_SEGMENT_MS)
@@ -173,3 +206,5 @@ print("zip_sha256", hashlib.sha256(ZIP.read_bytes()).hexdigest())
 print("payload", hex(ENTRY), hex(ENTRY + len(payload) - 1), len(payload))
 print("segments", len(sizes), sizes)
 print("timing", ZERO_T, ONE_T, PILOT_T, SYNC_T, MINISYNC_T)
+print("tzx_size", len(tzx))
+assert 24000 < len(tzx) < 32000
