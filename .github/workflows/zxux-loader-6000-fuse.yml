@@ -177,6 +177,12 @@ jobs:
             python3 experiments/zx-ux-loader-6000-fuse/input_xtest.py \
               --display ":99" --log "$d/keyboard.json" >"$d/keyboard.log" 2>&1
             echo "xtest_input_sent=YES" >>"$d/diagnostics.txt"
+            sleep 1
+            # F1 is a Fuse-native menu shortcut. It tests host input
+            # independently of the Spectrum's BASIC LOAD command.
+            xdotool key F1 >>"$d/diagnostics.txt" 2>&1 || true
+            echo "probe_menu_key=F1" >> "$d/diagnostics.txt"
+            sleep 1
             timeout 4s xwd -root -silent -out "$d/after-input.xwd" || true
             if [ -s "$d/after-input.xwd" ]; then
               timeout 4s convert "$d/after-input.xwd" "$d/after-input.png" || true
