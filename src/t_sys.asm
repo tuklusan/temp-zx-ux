@@ -188,8 +188,15 @@ SH_SARV equ TV+494              ; 12 pointers
 SH_SARG equ TV+518              ; 160 argument strings
 SH_LINE2 equ TV+678             ; 128
 SH_END  equ TV+806
+; the shell's stack reserve: its SAVE block keeps this much of its stack
+; for as long as it lives (with init's, the memory every other program
+; does without).  Deepest seen: 58 bytes at a window save over
+; tests/suite.py (tools/dev/savedepth.py), 106 at any instruction with
+; interrupt frames, scripts, redirection and globbing.  A stack deeper
+; than this at a save gets the shell killed, never memory overwritten.
+STK_SH  equ 256
 t_sh:   db 18h,6
-        dw STKRES, SH_SARV-UDATA, sh_m
+        dw STK_SH, SH_SARV-UDATA, sh_m
 sh_m:
         pop hl
         call args

@@ -575,6 +575,80 @@ def shell_below_picture(s):
 
 
 @test
+def pair_after_prompt(s):
+    """the release's multitask snapshot (tools/mtsnap.py): hanoi in the
+    background, a prompt below its picture, then queens8 - both run"""
+    import rtap
+    s.login()
+    own = ksym('scrown')
+    for n, count in (('hanoi', 1), ('queens8', 2)):
+        f = os.path.join(ROOT, 'build', 'c48', n + '-mt.ssx')
+        if not os.path.exists(f):
+            raise Fail('%s missing: run tools/mktapes.py' % f)
+        s.zx.type('/dev/cassette/%s &\n' % n)
+        s.zx.tr.edges = zxrun.tape_pulses(rtap.records(open(f, 'rb').read(), n),
+                                          s.zx.sim.registers[25] + 350000)
+        for _ in range(500):
+            if bin(s.zx.mem[own]).count('1') == count:
+                break
+            s.wait(10)
+        else:
+            raise Fail('%s did not start:\n%s' % (n, s.screen()))
+        if n == 'hanoi':
+            s.wait(100)
+            s.zx.type('\n')                # a prompt below the picture
+            s.wait(100)
+
+
+def saves_watched(s, frames):
+    """run frames, stopping at each window save (wsave): the deepest stack
+    (CORETOP - saved SP) per program name"""
+    from skoolkit.simutils import A, PC, T
+    wsave, coretop = ksym('wsave'), ksym('CORETOP')
+    p_sp, stline = ksym('p_sp'), ksym('stline')
+    zx = s.zx
+    regs, m = zx.sim.registers, zx.mem
+    deep = {}
+    for _ in range(frames):
+        end = regs[T] + zxrun.FRAME
+        while True:
+            zx.sim.trace(regs[PC], wsave, 0, end, 1, None, None, None, None, None)
+            if regs[PC] != wsave or regs[T] >= end:
+                break
+            slot = regs[A]
+            sp = m[p_sp + 2 * slot] | m[p_sp + 2 * slot + 1] << 8
+            name = bytes(m[stline + 8 * slot:stline + 8 * slot + 8]).split(b'\0')[0]
+            name = name.decode('latin-1').strip()
+            deep[name] = max(deep.get(name, 0), coretop - sp)
+            zx.sim.trace(regs[PC], -1, 1, end, 1, None, None, None, None, None)
+        zx.frames += 1
+    return deep
+
+
+@test
+def shell_save_depth(s):
+    """the shell's stack stays well inside its reserve (STK_SH, t_sys.asm)
+    when its window image is saved: a resident job in the background takes
+    the window while the shell globs, redirects and runs a script"""
+    s.login()
+    s.sh('echo echo $1 $2 > /tmp/s')
+    s.sh('echo ls /bin/c* >> /tmp/s')
+    deep = {}
+    for cmd in ('sleep 2 &', 'ls -l /bin/c* > /tmp/l', 'sh /tmp/s a b', 'sleep 1 &',
+                'echo a b c d e f g h i j k l m n o p > /tmp/m', 'cat /tmp/m /tmp/l'):
+        s.zx.type(cmd + '\n')
+        for k, v in saves_watched(s, 400).items():
+            deep[k] = max(deep.get(k, 0), v)
+    reserve = 256                       # STK_SH
+    if 'sh' not in deep:
+        raise Fail('the shell was never saved: %s' % deep)
+    if deep['sh'] > reserve // 2:
+        raise Fail('the shell saved %d bytes of stack; its reserve is %d' % (deep['sh'], reserve))
+    s.wait_prompt()
+    s.expect('echo alive', 'alive')
+
+
+@test
 def pair_without_lending(s):
     """hanoi and queens8 (tools/mktapes.py) both fit in the arena: the shell keeps running"""
     import rtap
