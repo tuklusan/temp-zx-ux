@@ -2,6 +2,10 @@ breakpoint 0x5ce7
 breakpoint 0x0556
 breakpoint 0x6000
 breakpoint time 0 if spectrum:frames > 10500
+breakpoint write 0xffef if z80:pc > 0xff00
+breakpoint write 0x6000 if z80:pc > 0x5c00
+breakpoint event tape:play
+breakpoint event tape:stop
 commands 1
 print 11111111
 print z80:pc
@@ -40,8 +44,6 @@ print 90909090
 print z80:pc
 print z80:sp
 print spectrum:frames
-# The ZQLoader upper-memory HEADER occupies 0xFFEF-0xFFFF.
-# These bytes distinguish an unrecognized leader from corrupt data.
 print 70707070
 print [0xffef]
 print [0xfff0]
@@ -81,5 +83,31 @@ print [0x600c]
 print [0x600d]
 print [0x600e]
 print [0x600f]
+end
+commands 5
+print 57575757
+print z80:pc
+print [0xffef]
+print [0xfff0]
+print [0xfff1]
+print [0xfff2]
+continue
+end
+commands 6
+print 60606060
+print z80:pc
+print [0x6000]
+print [0x6001]
+continue
+end
+commands 7
+print 73737373
+print spectrum:frames
+continue
+end
+commands 8
+print 83838383
+print spectrum:frames
+continue
 end
 continue
