@@ -1,6 +1,6 @@
 breakpoint 0x6000
 breakpoint time 0 if spectrum:frames > 10500
-breakpoint 0x03b5
+breakpoint 0xc17e
 commands 1
 print 60006000
 print z80:pc
