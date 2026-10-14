@@ -17,7 +17,7 @@ env:
 jobs:
   fuse-test:
     runs-on: ubuntu-24.04
-    timeout-minutes: 8
+    timeout-minutes: 5
 
     steps:
       - name: Checkout main
@@ -160,32 +160,47 @@ jobs:
           # Stop on the actual destination PC, not merely a printed number.
           # Force a flush on exit before examining the debugger output.
           result="TIMEOUT"
-          for i in $(seq 1 205); do
+          echo "monitor_started=$(date -u +%FT%TZ)" >> "$d/diagnostics.txt"
+          for i in $(seq 1 170); do
             if grep -A1 '^0x3939e70$' "$d/fuse.log" | grep -qx '0x6000'; then
               result="ENTRY_6000"
               break
             fi
             if grep -q '^0x56b29a2$' "$d/fuse.log"; then
-              result="TIMEOUT"
+              result="TIMEOUT_BREAKPOINT"
               break
             fi
             if ! kill -0 "$fuse_pid" 2>/dev/null; then
               result="FUSE_EXITED"
               break
             fi
+            if [ "$i" -ge 60 ] && ! grep -q '^0xa98ac7$' "$d/fuse.log"; then
+              result="LOADER_NEVER_ENTERED"
+              break
+            fi
+            if ((i % 10 == 0)); then
+              echo "poll=$i utc=$(date -u +%FT%TZ) bytes=$(wc -c < "$d/fuse.log")" | tee -a "$d/diagnostics.txt"
+              grep -E '^0x(34fb5e3|a98ac7|153158e|3939e70|56b29a2)$' "$d/fuse.log" | tail -10 || true
+            fi
             sleep 1
           done
 
-          xwd -root -silent -out "$d/fuse-final.xwd" || true
-          convert "$d/fuse-final.xwd" "$d/fuse-final.png" || true
+          # Persist result before optional screenshots or process cleanup.
+          echo "$result" | tee "$d/fuse-result.txt"
+          echo "monitor_ended=$(date -u +%FT%TZ) result=$result" >> "$d/diagnostics.txt"
+          timeout -k 2s 5s xwd -root -silent -out "$d/fuse-final.xwd" || echo "screenshot_xwd_failed" >> "$d/diagnostics.txt"
+          if [ -s "$d/fuse-final.xwd" ]; then
+            timeout -k 2s 5s convert "$d/fuse-final.xwd" "$d/fuse-final.png" || echo "screenshot_png_failed" >> "$d/diagnostics.txt"
+          fi
 
           kill "$tape_starter_pid" 2>/dev/null || true
-          kill "$fuse_pid" 2>/dev/null || true
-          wait "$fuse_pid" 2>/dev/null || true
-          kill "$xvfb_pid" 2>/dev/null || true
-
+          kill -KILL "$fuse_pid" 2>/dev/null || true
+          kill -KILL "$xvfb_pid" 2>/dev/null || true
+          # Never wait indefinitely on a GUI emulator in a cloud runner.
+          echo "cleanup_complete=$(date -u +%FT%TZ)" >> "$d/diagnostics.txt"
           if grep -A1 '^0x3939e70$' "$d/fuse.log" | grep -qx '0x6000'; then
             result="ENTRY_6000"
+            echo "$result" > "$d/fuse-result.txt"
           fi
 
           echo "$result" | tee "$d/fuse-result.txt"
@@ -199,7 +214,8 @@ jobs:
         run: |
           set -euo pipefail
           d=experiments/zx-ux-loader-6000-fuse/output
-          sha256sum             "$d/zx-ux-new-loader-test.tzx"             "$d/zx-ux-new-loader-test.tzx.zip"             "$d/fuse.log"             "$d/fuse-final.png" > "$d/SHA256SUMS"
+          sha256sum "$d/zx-ux-new-loader-test.tzx" "$d/zx-ux-new-loader-test.tzx.zip" "$d/fuse.log" > "$d/SHA256SUMS"
+          if test -s "$d/fuse-final.png"; then sha256sum "$d/fuse-final.png" >> "$d/SHA256SUMS"; fi
 
       - name: Persist diagnostic output
         if: always()
@@ -212,9 +228,14 @@ jobs:
           if git diff --cached --quiet; then
             exit 0
           fi
+          # Rebase without merging generated binary diagnostic files.
+          # Keep output from this runner, but base its commit on the latest main.
+          git fetch origin main
+          git reset --mixed origin/main
+          git add experiments/zx-ux-loader-6000-fuse/output
+          if git diff --cached --quiet; then exit 0; fi
           git commit -m "ZX-UX: persist 6000 loader Fuse diagnostics"
-          git pull --rebase origin main
-          git push origin main
+          git push origin HEAD:main
 
       - name: Assert entry reached
         shell: bash
