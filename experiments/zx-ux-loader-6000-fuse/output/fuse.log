@@ -11,24 +11,4 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
-0x56b29a2
-0xffbe
-0x2905
-0x436e77e
-0x4
-0x4
-0x38
-0x98
-0x0
-0x0
-0x0
-0x4c
-0x27
-0xc1
-0x0
-0x0
-0x0
-0x0
-0x0
-0x0
-0x0
+Fatal glibc error: malloc.c:4376 (_int_malloc): assertion failed: (unsigned long) (size) >= (unsigned long) (nb)
