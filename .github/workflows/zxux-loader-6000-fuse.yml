@@ -47,11 +47,11 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y \
-            fuse-emulator-gtk=1.6.0+dfsg1-2build3 \
+            fuse-emulator-sdl=1.6.0+dfsg1-2build3 \
             libspectrum8=1.5.0-4build2 \
             xvfb=2:21.1.12-1ubuntu1.8 \
             openbox x11-utils x11-apps xdotool imagemagick
-          for bin in fuse Xvfb openbox xdotool xwininfo xprop convert; do
+          for bin in fuse-sdl Xvfb openbox xdotool xwininfo xprop convert; do
             command -v "$bin" || { echo "MISSING_REQUIRED_TOOL=$bin"; exit 1; }
           done
           # Ubuntu chooses OpenSE BASIC unless the authentic ROM is supplied.
@@ -68,7 +68,7 @@ jobs:
           test "$(stat --printf=%s "$rom")" -eq 16384
           echo "Official Sinclair 48K ROM:"
           sha256sum "$rom"
-          fuse --version
+          fuse-sdl --version
 
       - name: Build corrected TZX
         shell: bash
@@ -99,7 +99,7 @@ jobs:
           breakpoint 0x5ce7
           breakpoint 0x0556
           breakpoint 0x6000
-          breakpoint time 0 if spectrum:frames > 2600
+          breakpoint time 0 if spectrum:frames > 10500
           commands 1
           print 11111111
           print z80:pc
@@ -164,40 +164,19 @@ jobs:
           DBG
 
           cmd="$(cat "$d/debugger.txt")"
-          stdbuf -o0 -e0 fuse --machine 48 --rom-48 /tmp/zx-spectrum-roms/usr/share/spectrum-roms/48.rom \
+          SDL_VIDEODRIVER=x11 SDL_AUDIODRIVER=dummy stdbuf -o0 -e0 fuse-sdl --machine 48 --rom-48 /tmp/zx-spectrum-roms/usr/share/spectrum-roms/48.rom \
             --tape "$d/zx-ux-new-loader-test.tzx" \
-            --no-auto-load --no-fastload --no-accelerate-loader --no-sound \
+            --auto-load --no-fastload --no-accelerate-loader --no-sound \
             --no-confirm-actions --debugger-command "$cmd" \
             >"$d/fuse.log" 2>&1 &
           fuse_pid=$!
           echo "Fuse PID=$fuse_pid Xvfb PID=$xvfb_pid WM PID=$wm_pid" > "$d/diagnostics.txt"
+          # Reuse the proven SDL/XTEST keystrokes from tests/fuse_boot.py.
+          # Spectrum double quote is CTRL+P, NOT a host quotedbl key.
           (
-            # The previous X11 path accidentally targeted an unmapped window.
-            # Record all windows, select mapped/viewable Fuse window only.
-            for i in $(seq 1 120); do
-              xwininfo -root -tree >"$d/x11-windows.txt" 2>&1 || true
-              wins="$(xdotool search --onlyvisible --class fuse 2>/dev/null || true)"
-              [ -n "$wins" ] && break
-              sleep 0.2
-            done
-            echo "visible_fuse_windows=$wins" >> "$d/diagnostics.txt"
-            xprop -root _NET_ACTIVE_WINDOW >>"$d/diagnostics.txt" 2>&1 || true
-            win="$(printf '%s\\n' "$wins" | head -n1)"
-            if [ -z "$win" ]; then
-              echo "inject=NO_VIEWABLE_FUSE_WINDOW" >>"$d/diagnostics.txt"
-              exit 0
-            fi
-            xwininfo -id "$win" >"$d/fuse-window-info.txt" 2>&1 || true
-            echo "target_window_name=$(xdotool getwindowname "$win" 2>/dev/null || true)" >> "$d/diagnostics.txt"
-            xdotool windowactivate "$win" >>"$d/diagnostics.txt" 2>&1 || true
-            xdotool mousemove --window "$win" 50 75 click 1 >>"$d/diagnostics.txt" 2>&1 || true
-            xdotool windowfocus "$win" >>"$d/diagnostics.txt" 2>&1 || true
-            echo "focus_after_activation=$(xdotool getwindowfocus 2>/dev/null || true)" >>"$d/diagnostics.txt"
-            sleep 0.7
-            xdotool key --clearmodifiers --delay 160 j quotedbl quotedbl Return >>"$d/diagnostics.txt" 2>&1 || true
-            sleep 0.4
-            xdotool key F8 >>"$d/diagnostics.txt" 2>&1 || true
-            echo "inject=LOAD_quotes_play" >>"$d/diagnostics.txt"
+            python3 experiments/zx-ux-loader-6000-fuse/input_xtest.py \
+              --display ":99" --log "$d/keyboard.json" >"$d/keyboard.log" 2>&1
+            echo "xtest_input_sent=YES" >>"$d/diagnostics.txt"
             timeout 4s xwd -root -silent -out "$d/after-input.xwd" || true
             if [ -s "$d/after-input.xwd" ]; then
               timeout 4s convert "$d/after-input.xwd" "$d/after-input.png" || true
@@ -209,7 +188,7 @@ jobs:
           # Force a flush on exit before examining the debugger output.
           result="TIMEOUT"
           echo "monitor_started=$(date -u +%FT%TZ)" >> "$d/diagnostics.txt"
-          for i in $(seq 1 68); do
+          for i in $(seq 1 225); do
             if grep -A1 '^0x3939e70$' "$d/fuse.log" | grep -qx '0x6000'; then
               result="ENTRY_6000"
               break
@@ -254,7 +233,9 @@ jobs:
 
           echo "$result" | tee "$d/fuse-result.txt"
           echo "Result=$result" >> "$d/diagnostics.txt"
+          if test -f "$d/keyboard.json"; then cat "$d/keyboard.json" >> "$d/diagnostics.txt"; fi
           grep -E '0x3939e70|0xa98ac7|0x34fb5e3|0x56b29a2|error|Error|Unknown' "$d/fuse.log" >> "$d/diagnostics.txt" || true
+          cat "$d/keyboard.log" || true
           cat "$d/fuse.log" || true
 
       - name: Record hashes
