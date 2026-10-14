@@ -21,7 +21,7 @@ SYNC1_T=875
 SYNC2_T=613
 ZERO_T=513         # each bit consists of two equal-length half-pulses
 ONE_T=1025
-PAUSE_MS=400
+PAUSE_MS=0  # no silence between turbo data blocks
 PROG_NAME=b'ZX-UX UNIX'   # exactly 10 bytes, replaces ZQLOADER
 LOAD_CODE_NAME=b'ZX-UX BOOT'  # exactly 10 bytes
 TZX_MAGIC=b'ZXTape!\x1a\x01\x14'
@@ -262,7 +262,7 @@ def build(tap:bytes, lines:list[str]):
     for i,n in enumerate(sizes):
         data=payload[cursor:cursor+n]
         raw=data+bytes([xor8(data)])
-        pause=PAUSE_MS if i<ROWS-1 else 0
+        pause=PAUSE_MS
         tzx.extend(turbo_block(raw,pause))
         segments.append({'block':i+1,'address':ENTRY+cursor,'bytes':n,'xor':raw[-1], 'pause_ms':pause})
         cursor+=n
@@ -275,7 +275,7 @@ def build(tap:bytes, lines:list[str]):
         'turbo':{'block':'0x11','pilot':PILOT_T,'pilot_edges':PILOT_EDGES,
           'sync_1':SYNC1_T,'sync_2':SYNC2_T,'zero_half':ZERO_T,'one_half':ONE_T,
           'data_bit_speed_multiplier_vs_ROM':round(855/ZERO_T,3)},
-        'segments':segments,'tzx_bytes':len(tzx),'tzx_sha256':hashlib.sha256(tzx).hexdigest(),
+        'turbo_interblock_pause_ms':PAUSE_MS,'segments':segments,'tzx_bytes':len(tzx),'tzx_sha256':hashlib.sha256(tzx).hexdigest(),
         'beep':'one ROM 0x03B5 BEEPER call, DE=250 HL=407, then 25x 50Hz HALT'}
     return bytes(tzx),meta
 

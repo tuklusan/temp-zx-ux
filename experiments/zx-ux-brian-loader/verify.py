@@ -65,7 +65,7 @@ def verify(tzx,tap,text):
     original=tape_payload(tap)
     assert bytes(data)==original, 'payload differs from source TAP'
     assert sum(sizes)==len(original) and max(sizes)-min(sizes)<=1
-    assert all(blk['pause']==400 for _,blk in blocks[4:-1]) and blocks[-1][1]['pause']==0
+    assert all(blk['pause']==0 for _,blk in blocks[4:]), 'unexpected turbo inter-block silence'
     digest=hashlib.sha256(b).hexdigest()
     print(f'PASS: {len(b)} TZX bytes; {len(original)} payload bytes; 24 turbo blocks; SHA256={digest}')
     return digest
