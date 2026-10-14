@@ -1,5 +1,5 @@
 
-xwininfo: Window id: 0x200003 "Fuse"
+xwininfo: Window id: 0x400003 "Fuse"
 
   Absolute upper-left X:  480
   Absolute upper-left Y:  311
@@ -12,7 +12,7 @@ xwininfo: Window id: 0x200003 "Fuse"
   Visual Class: TrueColor
   Border width: 0
   Class: InputOutput
-  Colormap: 0x200002 (installed)
+  Colormap: 0x400002 (installed)
   Bit Gravity State: NorthWestGravity
   Window Gravity State: NorthWestGravity
   Backing Store State: NotUseful
