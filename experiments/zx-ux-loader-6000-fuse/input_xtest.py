@@ -51,7 +51,7 @@ def visible_fuse_window(display):
         f"{last_error}; candidates={candidates!r}")
 
 
-def send_rom_load(display, outdir):
+def send_rom_load(display, outdir, manual_play_before_enter=False):
     outdir.mkdir(parents=True, exist_ok=True)
     win = visible_fuse_window(display)
 
@@ -110,6 +110,17 @@ def send_rom_load(display, outdir):
         chord("Control_L", "p")
         time.sleep(0.6)
         snapshot("02-quotes")
+        if manual_play_before_enter:
+            # When --no-detect-loader is active, start the tape explicitly.
+            # Do this before BASIC executes LOAD, so F8 cannot accidentally
+            # pause tape that the ROM has already auto-started.
+            subprocess.run(
+                ["xdotool", "key", "--clearmodifiers", "F8"],
+                env=dict(os.environ, DISPLAY=display), capture_output=True,
+                text=True, check=True,
+            )
+            time.sleep(0.35)
+            snapshot("02a-manual-play-before-enter")
         key("Return", True)
         key("Return", False)
         time.sleep(1)
@@ -123,7 +134,9 @@ def send_rom_load(display, outdir):
     finally:
         x11.XCloseDisplay(ptr)
     return {"result": "SENT", "window": hex(win),
-            "spectrum_keys": ["J", "Ctrl+P", "Ctrl+P", "Enter"],
+            "spectrum_keys": (["J", "Ctrl+P", "Ctrl+P", "F8 Play", "Enter"]
+                              if manual_play_before_enter
+                              else ["J", "Ctrl+P", "Ctrl+P", "Enter"]),
             "display": display}
 
 
@@ -132,9 +145,10 @@ def main():
     p.add_argument("--display", default=":99")
     p.add_argument("--log", type=Path, required=True)
     p.add_argument("--output-dir", type=Path, required=True)
+    p.add_argument("--manual-play-before-enter", action="store_true")
     args = p.parse_args()
     try:
-        result = send_rom_load(args.display, args.output_dir)
+        result = send_rom_load(args.display, args.output_dir, args.manual_play_before_enter)
     except Exception as error:
         failure = {"result": "ERROR", "error": str(error), "display": args.display}
         args.log.write_text(json.dumps(failure, indent=2) + "\n")

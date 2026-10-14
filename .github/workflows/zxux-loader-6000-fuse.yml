@@ -162,7 +162,7 @@ jobs:
             echo "launch_attempt=$attempt at $(date -u +%FT%TZ)" >> "$d/fuse-launch.log"
             SDL_VIDEODRIVER=x11 SDL_AUDIODRIVER=dummy stdbuf -o0 -e0 fuse-sdl --machine 48 --rom-48 /tmp/zx-spectrum-roms/usr/share/spectrum-roms/48.rom \
               --tape "$d/zx-ux-new-loader-test.tzx" \
-              --no-auto-load --no-traps --no-fastload --no-accelerate-loader --no-sound \
+              --no-auto-load --no-traps --no-detect-loader --no-fastload --no-accelerate-loader --no-sound \
               --no-confirm-actions --debugger-command "$cmd" >"$d/fuse.log" 2>&1 &
             fuse_pid=$!
             for j in $(seq 1 80); do
@@ -183,9 +183,10 @@ jobs:
           done
           echo "window_after_retries=$fuse_window" >> "$d/fuse-launch.log"
           echo "Fuse PID=$fuse_pid Xvfb PID=$xvfb_pid WM PID=$wm_pid" > "$d/diagnostics.txt"
-          # XTEST types LOAD ""; Fuse's ROM-loader detection auto-starts tape.
-          # F8 toggles playback and must not be pressed during active loading.
-          # No ROM/tape-event breakpoints: preserve real tape timing.
+          # Fuse loader detection is OFF. Type LOAD "" with XTEST but first
+          # start physical playback using F8 *before* Enter, while in BASIC.
+          # This avoids heuristic auto-stop during the fast loader and ensures
+          # there is no second F8 toggle to pause the emulated cassette.
           # This runs every tape edge at actual emulated speed.
           # Reuse the proven SDL/XTEST keystrokes from tests/fuse_boot.py.
           # Spectrum double quote is CTRL+P, NOT a host quotedbl key.
@@ -193,7 +194,7 @@ jobs:
           rm -f "$d/keyboard.json" "$d/keyboard.log" "$d/after-input.xwd" "$d/after-input.png"
           (
             if python3 experiments/zx-ux-loader-6000-fuse/input_xtest.py \
-                  --display ":99" --log "$d/keyboard.json" --output-dir "$d" >"$d/keyboard.log" 2>&1; then
+                  --display ":99" --log "$d/keyboard.json" --output-dir "$d" --manual-play-before-enter >"$d/keyboard.log" 2>&1; then
               echo "xtest_input_sent=YES" >>"$d/diagnostics.txt"
             else
               echo "xtest_input_sent=NO" >>"$d/diagnostics.txt"
