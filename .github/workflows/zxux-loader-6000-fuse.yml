@@ -59,9 +59,16 @@ jobs:
           sleep 1
 
           cat >"$d/debugger.txt" <<'DBG'
+          breakpoint 0x5ce7
           breakpoint 0x6000
           breakpoint time 0 if spectrum:frames > 8000
           commands 1
+          print 11111111
+          print z80:pc
+          print z80:sp
+          continue
+          end
+          commands 2
           print 60006000
           print z80:pc
           print z80:sp
@@ -82,7 +89,7 @@ jobs:
           print [0x600e]
           print [0x600f]
           end
-          commands 2
+          commands 3
           print 90909090
           print z80:pc
           print z80:sp
@@ -107,7 +114,7 @@ jobs:
           DBG
 
           cmd="$(cat "$d/debugger.txt")"
-          stdbuf -oL -eL fuse --machine 48             --tape "$d/zx-ux-new-loader-test.tzx"             --auto-load --no-fastload --no-accelerate-loader --no-traps             --no-confirm-actions --debugger-command "$cmd"             >"$d/fuse.log" 2>&1 &
+          stdbuf -oL -eL fuse --machine 48             --tape "$d/zx-ux-new-loader-test.tzx"             --auto-load --no-fastload --no-accelerate-loader             --no-confirm-actions --debugger-command "$cmd"             >"$d/fuse.log" 2>&1 &
           fuse_pid=$!
 
           result=""
