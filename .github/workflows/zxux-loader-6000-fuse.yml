@@ -79,11 +79,10 @@ jobs:
             --tzx experiments/zx-ux-loader-6000-fuse/output/zx-ux-new-loader-test.tzx \
             --source experiments/zx-ux-loader-6000-fuse/ZX-UX.tap \
             --text-lines experiments/zx-ux-loader-6000-fuse/text-lines.txt
-          # Lock this release to the TZX that passed a real-speed PC=0x6000 proof.
-          test "$(sha256sum experiments/zx-ux-loader-6000-fuse/output/zx-ux-new-loader-test.tzx | cut -d' ' -f1)" = "12632894a05056e640d352798d7e13f36893a449472a1fdbe8010c4e41a7dfff"
+          # Pin this structural candidate; Fuse proof below is required before release.
+          test "$(sha256sum experiments/zx-ux-loader-6000-fuse/output/zx-ux-new-loader-test.tzx | cut -d' ' -f1)" = "c15aa23d7ffb9ed7d5eb11d864cad54e48c04e030a5bb7777da813a3d9a45aa2"
           test -s experiments/zx-ux-loader-6000-fuse/output/zx-ux-new-loader-test.tzx
           unzip -t experiments/zx-ux-loader-6000-fuse/output/zx-ux-new-loader-test.tzx.zip
-          python3 experiments/zx-ux-loader-6000-fuse/build_control.py
 
       - name: Real-speed Fuse proof
         shell: bash
@@ -107,6 +106,7 @@ jobs:
           cat >"$d/debugger.txt" <<'DBG'
           breakpoint 0x6000
           breakpoint time 0 if spectrum:frames > 10500
+          breakpoint 0xc17e
           commands 1
           print 60006000
           print z80:pc
@@ -155,10 +155,17 @@ jobs:
           print [0xfffe]
           print [0xffff]
           end
+          commands 3
+          print 25252525
+          print z80:pc
+          print z80:de
+          print z80:hl
+          continue
+          end
           continue
           DBG
 
-          # CONTROL ONLY: no progress printer, same source, timing and ZQLoader.
+          # Final display loader, exact new TAP; bare loader used only for debugging.
           cmd="$(cat "$d/debugger.txt")"
           # A small percentage of cloud SDL initializations never map a
           # window. Capture X11 state and retry the emulator, not the tape.
@@ -167,7 +174,7 @@ jobs:
           for attempt in 1 2 3; do
             echo "launch_attempt=$attempt at $(date -u +%FT%TZ)" >> "$d/fuse-launch.log"
             SDL_VIDEODRIVER=x11 SDL_AUDIODRIVER=dummy stdbuf -o0 -e0 fuse-sdl --machine 48 --rom-48 /tmp/zx-spectrum-roms/usr/share/spectrum-roms/48.rom \
-              --tape "$d/bare-control.tzx" \
+              --tape "$d/zx-ux-new-loader-test.tzx" \
               --no-auto-load --no-traps --no-fastload --no-accelerate-loader --no-sound \
               --no-confirm-actions --debugger-command "$cmd" >"$d/fuse.log" 2>&1 &
             fuse_pid=$!
@@ -284,7 +291,7 @@ jobs:
           done
 
           # Allow the 0x6000 payload to render its tty/login before final capture.
-          if [ "$result" = "ENTRY_6000" ]; then sleep 5; fi
+          if [ "$result" = "ENTRY_6000" ]; then sleep 18; fi
           # Persist result before optional screenshots or process cleanup.
           echo "$result" | tee "$d/fuse-result.txt"
           echo "monitor_ended=$(date -u +%FT%TZ) result=$result" >> "$d/diagnostics.txt"
@@ -354,4 +361,5 @@ jobs:
           cat "$d/fuse-result.txt"
           test "$(cat "$d/fuse-result.txt")" = "ENTRY_6000"
           grep -A1 '^0x3939e70$' "$d/fuse.log" | grep -qx '0x6000'
-          test -s "$d/bare-control.tzx"
+          grep -q '^0x18152ad
+ "$d/fuse.log"

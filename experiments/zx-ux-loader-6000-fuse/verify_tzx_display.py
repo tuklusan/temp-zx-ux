@@ -82,8 +82,9 @@ def check(tzx,source,lines):
         hdr,pilots,reps=turbo[2*i]
         data=turbo[2*i+1][0]
         assert len(hdr)==17
-        n,load,dest,typ,crc,after,*_=struct.unpack('<HHHBBHHBHBB',hdr)
+        n,load,dest,typ,crc,after,clear,*_=struct.unpack('<HHHBBHHBHBB',hdr)
         assert n==len(data) and crc==zq_crc(data) and dest==0 and typ==0
+        assert clear==(0x5FFF if i==24 else 0), f"wrong final stack/interrupt handoff {clear:#x}"
         assert pilots==[(0,(450,450)),(0,(250,499))]
         assert reps==[(0,800),(1,1)]
         if i==0:

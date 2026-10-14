@@ -78,11 +78,11 @@ def zq_crc(payload):
         v = ((v << 1) | (v >> 7)) & 0xff
     return v
 
-def header_for(chunk, address, after):
+def header_for(chunk, address, after, clear=0):
     h = struct.pack(
         "<HHHBBHHBHBB",
         len(chunk), address, 0, 0, zq_crc(chunk),
-        after, 0, 0, 0, 0, 0
+        after, clear, 0, 0, 0, 0
     )
     assert len(h) == 17
     return h
@@ -215,7 +215,7 @@ addr = ENTRY
 for i, n in enumerate(sizes):
     chunk = payload[pos:pos+n]
     after = DISPLAY_CALLBACK  # draw one configured line; last line jumps to ENTRY
-    header = header_for(chunk, addr, after)
+    header = header_for(chunk, addr, after, clear=0x5FFF if i == SEGMENTS - 1 else 0)
 
     # Standard compact TZX representation used by ZQLoader itself:
     #   0x19: leader + sync/minisync + 17-byte turbo header
