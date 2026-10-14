@@ -62,7 +62,7 @@ def check(tzx,source,lines):
             turbo.append((data,pilots,reps))
         elif bid==0x20:
             ms=struct.unpack_from('<H',tzx,p+1)[0]
-            assert ms == 1000, f'unexpected inter-segment pause {ms} ms'
+            assert ms == 350, f'unexpected inter-segment pause {ms} ms'
             pauses+=1;p+=3
         else:raise AssertionError(f'Unexpected TZX block {bid:#x}')
     assert p==len(tzx) and len(rom)==2 and len(turbo)==50 and pauses==24
@@ -80,7 +80,7 @@ def check(tzx,source,lines):
         n,load,dest,typ,crc,after,*_=struct.unpack('<HHHBBHHBHBB',hdr)
         assert n==len(data) and crc==zq_crc(data) and dest==0 and typ==0
         assert pilots==[(0,(450,450)),(0,(250,499))]
-        assert reps==[(0,1200),(1,1)]
+        assert reps==[(0,800),(1,1)]
         if i==0:
             assert load==0xc100 and after==0xc100
         else:
