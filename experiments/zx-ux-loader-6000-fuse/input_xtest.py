@@ -114,21 +114,16 @@ def send_rom_load(display, outdir):
         key("Return", False)
         time.sleep(1)
         snapshot("03-return")
-        # Official Fuse real-tape workflow: with --no-traps, start playback
-        # explicitly using F8 once the real BASIC LOAD command is active.
-        subprocess.run(
-            ["xdotool", "key", "--clearmodifiers", "F8"],
-            env=dict(os.environ, DISPLAY=display), capture_output=True,
-            text=True, check=True,
-        )
+        # ROM-loader auto-detection starts playback. F8 toggles Play/Stop,
+        # so pressing it now can STOP an already playing cassette.
         time.sleep(0.5)
-        snapshot("03a-play")
+        snapshot("03a-auto-playing")
         time.sleep(5)
         snapshot("04-wait")
     finally:
         x11.XCloseDisplay(ptr)
     return {"result": "SENT", "window": hex(win),
-            "spectrum_keys": ["J", "Ctrl+P", "Ctrl+P", "Enter", "F8 (Tape Play)"],
+            "spectrum_keys": ["J", "Ctrl+P", "Ctrl+P", "Enter"],
             "display": display}
 
 

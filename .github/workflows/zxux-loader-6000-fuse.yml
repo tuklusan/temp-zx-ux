@@ -25,7 +25,7 @@ env:
 jobs:
   fuse-test:
     runs-on: ubuntu-24.04
-    timeout-minutes: 6
+    timeout-minutes: 7
 
     steps:
       - name: Checkout main
@@ -152,11 +152,7 @@ jobs:
           continue
           DBG
 
-          # DIAGNOSTIC CONTROL ONLY: previously independently proven byte-exact
-          # TZX, to distinguish tape-media changes from the CI harness.
-          git show 59cc30152e5548ea64cd90f86a0e6726c10d4bae:experiments/zx-ux-loader-6000-fuse/output/zx-ux-new-loader-test.tzx >"$d/baseline-verified-control.tzx"
-          echo "4c548d0c355fe4912dfb0da0a1fa85b450bddd9393883c885166e2246b02cb12  $d/baseline-verified-control.tzx" | sha256sum -c
-          echo "CONTROL_MODE=previously_verified_tzx_only" > "$d/control-mode.txt"
+          # Test the new TZX, not the old control archive.
           cmd="$(cat "$d/debugger.txt")"
           # A small percentage of cloud SDL initializations never map a
           # window. Capture X11 state and retry the emulator, not the tape.
@@ -165,7 +161,7 @@ jobs:
           for attempt in 1 2 3; do
             echo "launch_attempt=$attempt at $(date -u +%FT%TZ)" >> "$d/fuse-launch.log"
             SDL_VIDEODRIVER=x11 SDL_AUDIODRIVER=dummy stdbuf -o0 -e0 fuse-sdl --machine 48 --rom-48 /tmp/zx-spectrum-roms/usr/share/spectrum-roms/48.rom \
-              --tape "$d/baseline-verified-control.tzx" \
+              --tape "$d/zx-ux-new-loader-test.tzx" \
               --no-auto-load --no-traps --no-fastload --no-accelerate-loader --no-sound \
               --no-confirm-actions --debugger-command "$cmd" >"$d/fuse.log" 2>&1 &
             fuse_pid=$!
@@ -187,11 +183,9 @@ jobs:
           done
           echo "window_after_retries=$fuse_window" >> "$d/fuse-launch.log"
           echo "Fuse PID=$fuse_pid Xvfb PID=$xvfb_pid WM PID=$wm_pid" > "$d/diagnostics.txt"
-          # Fuse manual: with ROM tape traps disabled, LOAD "" also needs F8 Play.
-          # The SDL/XTEST helper sends exactly that, after typing the BASIC command.
-          # Do not use ROM/tape-event breakpoints: these disturb real tape.
-          # Fuse's loader detection remains enabled for the ROM bootstrap;
-          # tape is also started with F8 after physical LOAD input.
+          # XTEST types LOAD ""; Fuse's ROM-loader detection auto-starts tape.
+          # F8 toggles playback and must not be pressed during active loading.
+          # No ROM/tape-event breakpoints: preserve real tape timing.
           # This runs every tape edge at actual emulated speed.
           # Reuse the proven SDL/XTEST keystrokes from tests/fuse_boot.py.
           # Spectrum double quote is CTRL+P, NOT a host quotedbl key.
@@ -323,10 +317,5 @@ jobs:
           set -euo pipefail
           d=experiments/zx-ux-loader-6000-fuse/output
           cat "$d/fuse-result.txt"
-          # A passing CONTROL still intentionally fails this revision's CI.
-          # A new TZX requires its own, separate runtime proof.
-          if [ "$(cat "$d/fuse-result.txt")" = "ENTRY_6000" ]; then
-            echo "CONTROL_BASELINE_VERIFIED; experimental TZX not yet proven"
-          fi
-          exit 1
+          test "$(cat "$d/fuse-result.txt")" = "ENTRY_6000"
           grep -A1 '^0x3939e70$' "$d/fuse.log" | grep -qx '0x6000'
