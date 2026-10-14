@@ -148,13 +148,20 @@ jobs:
           # BASIC command LOAD "" (J is the LOAD keyword key), then F8
           # to play the attached TZX at true tape speed.
           (
-            sleep 2
-            win="$(xdotool search --name 'Fuse' 2>/dev/null | head -n1 || true)"
+            # GTK startup can take several seconds on busy cloud runners.
+            win=""
+            for j in $(seq 1 120); do
+              win="$(xdotool search --name 'Fuse' 2>/dev/null | head -n1 || true)"
+              if [ -n "$win" ]; then break; fi
+              sleep 0.2
+            done
             if [ -z "$win" ]; then
               echo "manual_tape_play=no_window" >>"$d/diagnostics.txt"
             else
               echo "manual_tape_play=window:$win" >>"$d/diagnostics.txt"
+              echo "window_title=$(xdotool getwindowname "$win" 2>/dev/null || true)" >>"$d/diagnostics.txt"
               xdotool windowfocus "$win" || true
+              sleep 0.5
               xdotool key --clearmodifiers j || true
               sleep 0.2
               xdotool key --clearmodifiers quotedbl quotedbl Return || true
