@@ -166,11 +166,14 @@ jobs:
           cmd="$(cat "$d/debugger.txt")"
           SDL_VIDEODRIVER=x11 SDL_AUDIODRIVER=dummy stdbuf -o0 -e0 fuse-sdl --machine 48 --rom-48 /tmp/zx-spectrum-roms/usr/share/spectrum-roms/48.rom \
             --tape "$d/zx-ux-new-loader-test.tzx" \
-            --auto-load --no-fastload --no-accelerate-loader --no-sound \
+            --no-auto-load --no-traps --no-fastload --no-accelerate-loader --no-sound \
             --no-confirm-actions --debugger-command "$cmd" \
             >"$d/fuse.log" 2>&1 &
           fuse_pid=$!
           echo "Fuse PID=$fuse_pid Xvfb PID=$xvfb_pid WM PID=$wm_pid" > "$d/diagnostics.txt"
+          # Fuse manual: with ROM tape traps disabled, LOAD "" also needs F8 Play.
+          # The SDL/XTEST helper sends exactly that, after typing the BASIC command.
+          # This runs every tape edge at actual emulated speed.
           # Reuse the proven SDL/XTEST keystrokes from tests/fuse_boot.py.
           # Spectrum double quote is CTRL+P, NOT a host quotedbl key.
           # Fresh proof only: clear untrusted artifacts persisted by older runs.
