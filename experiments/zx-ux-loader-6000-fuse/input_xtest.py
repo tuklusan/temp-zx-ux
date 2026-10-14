@@ -19,21 +19,29 @@ KEYS = {"j": 44, "Control_L": 37, "p": 33, "Return": 36}
 
 def visible_fuse_window(display):
     env = dict(os.environ, DISPLAY=display)
+    last_error = "No viewable Fuse window"
     for _ in range(600):
         proc = subprocess.run(
             ["xwininfo", "-root", "-tree"],
-            capture_output=True, text=True, env=env, check=True,
+            capture_output=True, text=True, env=env, check=False,
         )
+        if proc.returncode:
+            last_error = proc.stderr.strip() or f"xwininfo root exit {proc.returncode}"
+            time.sleep(0.1)
+            continue
         for number in re.findall(r'^\s*(0x[0-9a-f]+)\s+"(Fuse[^"\n]*)"', proc.stdout, re.M):
             window_id = number[0]
             info = subprocess.run(
                 ["xwininfo", "-id", window_id],
-                capture_output=True, text=True, env=env, check=True,
+                capture_output=True, text=True, env=env, check=False,
             )
+            if info.returncode:
+                last_error = info.stderr.strip() or f"xwininfo window exit {info.returncode}"
+                continue
             if "Map State: IsViewable" in info.stdout:
                 return int(window_id, 16)
         time.sleep(0.1)
-    raise RuntimeError("A viewable Fuse SDL window did not appear in 60 s")
+    raise RuntimeError(f"A viewable Fuse SDL window did not appear in 60 s: {last_error}")
 
 
 def send_rom_load(display, outdir):
