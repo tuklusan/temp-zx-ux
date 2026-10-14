@@ -149,15 +149,18 @@ jobs:
           DBG
 
           cmd="$(cat "$d/debugger.txt")"
+          # Unlike --tape, opening a TZX as the positional file uses
+          # Fuse's file-open path, triggering the documented phantom typist.
           stdbuf -o0 -e0 fuse --machine 48 --rom-48 /tmp/zx-spectrum-roms/usr/share/spectrum-roms/48.rom \
-            --tape "$d/zx-ux-new-loader-test.tzx" \
-            --auto-load --no-fastload --no-accelerate-loader --no-sound \
+            --auto-load --phantom-typist-mode Keyword \
+            --no-fastload --no-accelerate-loader --no-sound \
             --no-confirm-actions --debugger-command "$cmd" \
+            "$d/zx-ux-new-loader-test.tzx" \
             >"$d/fuse.log" 2>&1 &
           fuse_pid=$!
 
           echo "Fuse PID=$fuse_pid Xvfb PID=$xvfb_pid" > "$d/diagnostics.txt"
-          echo "tape_start=Fuse_auto_load_ROM_48k" >> "$d/diagnostics.txt"
+          echo "tape_start=Fuse_positional_file_open_phantom_typist_ROM_48k" >> "$d/diagnostics.txt"
           ps -ef | grep -E 'fuse|Xvfb' >> "$d/diagnostics.txt" || true
           # Stop on the actual destination PC, not merely a printed number.
           # Force a flush on exit before examining the debugger output.
