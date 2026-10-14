@@ -17,7 +17,12 @@ for i in range(seg):
     n=base+(i<extra)
     chunk=payload[off:off+n]
     after=ns['ENTRY'] if i==seg-1 else 0x0100
-    header=ns['header_for'](chunk,ns['ENTRY']+off,after)
+    header=bytearray(ns['header_for'](chunk,ns['ENTRY']+off,after))
+    if i==seg-1:
+        # Match original ZX-UX.tap BASIC: CLEAR 24575, then ROM USR 24576.
+        # m_clear_address occupies bytes 10..11 of the 17-byte ZQLoader header.
+        # ZQLoader sets SP=0x5FFF and executes EI before jumping to 0x6000.
+        header[10:12]=(0x5FFF).to_bytes(2,'little')
     tzx+=ns['generalized_data_block'](
         header,[((ns['PILOT_T'],ns['PILOT_T']),ns['PILOT_EDGES']//2),
                 ((ns['SYNC_T'],ns['SYNC2_T']),1)])
