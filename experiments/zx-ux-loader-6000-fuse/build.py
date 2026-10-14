@@ -28,7 +28,10 @@ PILOT_EDGES = 1600
 SYNC_T = 250
 SYNC2_T = 499
 MINISYNC_T = 501
-INTER_SEGMENT_MS = 20
+# Give Fuse and the Spectrum one-third of a second to finish the
+# configured progress callback and stabilize before the next pilot.
+# Pulse bit timing stays fixed at 1140/2280 T-states (1.5x).
+INTER_SEGMENT_MS = 350
 
 TOTAL_START = 0x5CCB
 ASM_UPPER_START = 0xFF47
@@ -185,6 +188,9 @@ assert len(status_lines) == 24 and all(
     for line in status_lines
 ), "text-lines.txt must contain exactly 24 lines of 32 printable ASCII characters"
 display_data = DISPLAY_CODE + "".join(status_lines).encode("ascii")
+# Keep the Python-only Z80 assembler source and pinned machine bytes in sync.
+from display_hook import build_display_hook
+assert build_display_hook(status_lines,base=DISPLAY_RAM,entry=ENTRY).data == display_data, "display source/machine-code drift"
 assert len(display_data) == 891 and DISPLAY_RAM + len(display_data) <= ASM_UPPER_START
 
 base, rem = divmod(len(payload), SEGMENTS)

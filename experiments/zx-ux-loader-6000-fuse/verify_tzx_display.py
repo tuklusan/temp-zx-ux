@@ -61,6 +61,8 @@ def check(tzx,source,lines):
             p,data,pilots,reps=generalized(tzx,p)
             turbo.append((data,pilots,reps))
         elif bid==0x20:
+            ms=struct.unpack_from('<H',tzx,p+1)[0]
+            assert ms == 350, f'unexpected inter-segment pause {ms} ms'
             pauses+=1;p+=3
         else:raise AssertionError(f'Unexpected TZX block {bid:#x}')
     assert p==len(tzx) and len(rom)==2 and len(turbo)==50 and pauses==24
