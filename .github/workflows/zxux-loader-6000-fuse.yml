@@ -59,9 +59,31 @@ jobs:
           sleep 1
 
           cat >"$d/debugger.txt" <<'DBG'
+          breakpoint 0x5ce7
+          breakpoint 0x5cfa
+          breakpoint write 0x6000
           breakpoint 0x6000
           breakpoint time 0 if spectrum:frames > 8000
           commands 1
+          print 11111111
+          print z80:pc
+          print z80:sp
+          continue
+          end
+          commands 2
+          print 22222222
+          print z80:pc
+          print z80:sp
+          continue
+          end
+          commands 3
+          print 33333333
+          print z80:pc
+          print z80:sp
+          print [0x6000]
+          continue
+          end
+          commands 4
           print 60006000
           print z80:pc
           print z80:sp
@@ -69,10 +91,18 @@ jobs:
           print [0x6001]
           print [0x6002]
           end
-          commands 2
+          commands 5
           print 90909090
           print z80:pc
           print z80:sp
+          print [0x6000]
+          print [0x6001]
+          print [0x6002]
+          print [0x6003]
+          print [0x6004]
+          print [0x6005]
+          print [0x6006]
+          print [0x6007]
           end
           continue
           DBG
@@ -107,17 +137,19 @@ jobs:
           kill "$fuse_pid" 2>/dev/null || true
           kill "$xvfb_pid" 2>/dev/null || true
 
-          test "$result" = "ENTRY_6000"
-          grep -q "60006000" "$d/fuse.log"
+          # Persist the evidence before asserting success in a later step.
+          true
 
       - name: Record hashes
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
           d=experiments/zx-ux-loader-6000-fuse/output
           sha256sum             "$d/zx-ux-new-loader-test.tzx"             "$d/zx-ux-new-loader-test.tzx.zip"             "$d/fuse.log"             "$d/fuse-final.png" > "$d/SHA256SUMS"
 
-      - name: Persist verified output
+      - name: Persist diagnostic output
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
@@ -127,6 +159,15 @@ jobs:
           if git diff --cached --quiet; then
             exit 0
           fi
-          git commit -m "ZX-UX: persist Fuse-verified 6000 loader test"
+          git commit -m "ZX-UX: persist 6000 loader Fuse diagnostics"
           git pull --rebase origin main
           git push origin main
+
+      - name: Assert entry reached
+        shell: bash
+        run: |
+          set -euo pipefail
+          d=experiments/zx-ux-loader-6000-fuse/output
+          cat "$d/fuse-result.txt"
+          test "$(cat "$d/fuse-result.txt")" = "ENTRY_6000"
+          grep -q "60006000" "$d/fuse.log"
