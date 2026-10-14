@@ -1,1 +1,15 @@
-{"display": ":99", "result": "SENT", "spectrum_keys": ["J", "Ctrl+P", "Ctrl+P", "Enter"], "window": "0x400008"}
+Traceback (most recent call last):
+  File "/home/runner/work/temp-zx-ux/temp-zx-ux/experiments/zx-ux-loader-6000-fuse/input_xtest.py", line 128, in <module>
+    main()
+  File "/home/runner/work/temp-zx-ux/temp-zx-ux/experiments/zx-ux-loader-6000-fuse/input_xtest.py", line 118, in main
+    result = send_rom_load(args.display, args.output_dir)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/temp-zx-ux/temp-zx-ux/experiments/zx-ux-loader-6000-fuse/input_xtest.py", line 41, in send_rom_load
+    win = visible_fuse_window(display)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/temp-zx-ux/temp-zx-ux/experiments/zx-ux-loader-6000-fuse/input_xtest.py", line 23, in visible_fuse_window
+    proc = subprocess.run(
+           ^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['xwininfo', '-root', '-tree']' returned non-zero exit status 1.
