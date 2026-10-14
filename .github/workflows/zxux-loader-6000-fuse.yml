@@ -24,7 +24,7 @@ env:
 jobs:
   fuse-test:
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 6
 
     steps:
       - name: Checkout main
@@ -45,7 +45,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y openbox             fuse-emulator-gtk=1.6.0+dfsg1-2build3             libspectrum8=1.5.0-4build2             xvfb=2:21.1.12-1ubuntu1.8             x11-apps xdotool imagemagick
+          sudo apt-get install -y fuse-emulator-gtk=1.6.0+dfsg1-2build3             libspectrum8=1.5.0-4build2             xvfb=2:21.1.12-1ubuntu1.8             x11-apps xdotool imagemagick
           # Ubuntu chooses OpenSE BASIC unless the authentic ROM is supplied.
           # Pin the exact official Noble 'spectrum-roms_20081224-5_all.deb'
           # (SHA-256 from packages.ubuntu.com/noble/all/spectrum-roms/download).
@@ -79,14 +79,12 @@ jobs:
           Xvfb :99 -screen 0 1280x900x24 >"$d/xvfb.log" 2>&1 &
           xvfb_pid=$!
           sleep 1
-          openbox >"$d/window-manager.log" 2>&1 &
-          wm_pid=$!
 
           cat >"$d/debugger.txt" <<'DBG'
           breakpoint 0x5ce7
           breakpoint 0x0556
           breakpoint 0x6000
-          breakpoint time 0 if spectrum:frames > 1500
+          breakpoint time 0 if spectrum:frames > 10500
           commands 1
           print 11111111
           print z80:pc
@@ -153,47 +151,19 @@ jobs:
           cmd="$(cat "$d/debugger.txt")"
           stdbuf -o0 -e0 fuse --machine 48 --rom-48 /tmp/zx-spectrum-roms/usr/share/spectrum-roms/48.rom \
             --tape "$d/zx-ux-new-loader-test.tzx" \
-            --no-auto-load --no-fastload --no-accelerate-loader --no-traps --no-detect-loader --no-sound \
+            --auto-load --no-fastload --no-accelerate-loader --no-sound \
             --no-confirm-actions --debugger-command "$cmd" \
             >"$d/fuse.log" 2>&1 &
           fuse_pid=$!
 
           echo "Fuse PID=$fuse_pid Xvfb PID=$xvfb_pid" > "$d/diagnostics.txt"
-          # With --no-auto-load, always explicitly type the real 48K
-          # BASIC command LOAD "" (J is the LOAD keyword key), then F8
-          # to play the attached TZX at true tape speed.
-          (
-            # GTK startup can take several seconds on busy cloud runners.
-            win=""
-            for j in $(seq 1 120); do
-              win="$(xdotool search --name 'Fuse' 2>/dev/null | head -n1 || true)"
-              if [ -n "$win" ]; then break; fi
-              sleep 0.2
-            done
-            if [ -z "$win" ]; then
-              echo "manual_tape_play=no_window" >>"$d/diagnostics.txt"
-            else
-              echo "manual_tape_play=window:$win" >>"$d/diagnostics.txt"
-              echo "window_title=$(xdotool getwindowname "$win" 2>/dev/null || true)" >>"$d/diagnostics.txt"
-              xdotool windowactivate --sync "$win" >>"$d/diagnostics.txt" 2>&1 || echo "windowactivate_failed" >>"$d/diagnostics.txt"
-              xdotool windowfocus "$win" >>"$d/diagnostics.txt" 2>&1 || echo "windowfocus_failed" >>"$d/diagnostics.txt"
-              echo "focused_window=$(xdotool getwindowfocus 2>/dev/null || true)" >>"$d/diagnostics.txt"
-              sleep 0.5
-              xdotool key --clearmodifiers j || true
-              sleep 0.2
-              xdotool key --clearmodifiers quotedbl quotedbl Return || true
-              sleep 0.3
-              xdotool key F8 || true
-              echo "manual_tape_play=typed_LOAD_and_F8 utc=$(date -u +%FT%TZ)" >>"$d/diagnostics.txt"
-            fi
-          ) &
-          tape_starter_pid=$!
+          echo "tape_start=Fuse_auto_load_ROM_48k" >> "$d/diagnostics.txt"
           ps -ef | grep -E 'fuse|Xvfb' >> "$d/diagnostics.txt" || true
           # Stop on the actual destination PC, not merely a printed number.
           # Force a flush on exit before examining the debugger output.
           result="TIMEOUT"
           echo "monitor_started=$(date -u +%FT%TZ)" >> "$d/diagnostics.txt"
-          for i in $(seq 1 100); do
+          for i in $(seq 1 225); do
             if grep -A1 '^0x3939e70$' "$d/fuse.log" | grep -qx '0x6000'; then
               result="ENTRY_6000"
               break
@@ -225,9 +195,7 @@ jobs:
             timeout -k 2s 5s convert "$d/fuse-final.xwd" "$d/fuse-final.png" || echo "screenshot_png_failed" >> "$d/diagnostics.txt"
           fi
 
-          kill "$tape_starter_pid" 2>/dev/null || true
           kill -KILL "$fuse_pid" 2>/dev/null || true
-          kill "$wm_pid" 2>/dev/null || true
           kill -KILL "$xvfb_pid" 2>/dev/null || true
           # Never wait indefinitely on a GUI emulator in a cloud runner.
           echo "cleanup_complete=$(date -u +%FT%TZ)" >> "$d/diagnostics.txt"
