@@ -25,8 +25,8 @@ are described in `SPEC-ELASTIC-R2.md`.
 
     rcc  [-S|-c] [-o out] [--bytecode|--native] [--max BYTES] [--stack N] [--heap N] file.c
     ras  file.asm -> SSO1 object             rld  objects/archives -> SSX1
-    rtap [-o out.tzx|.tap] [--after ZX-UX.tzx] prog.ssx[=NAME] ...
-    rvm  prog.ssx [args] [--keys TEXT] [--frames N] [--png F] [--scr F] [--text] [--ticks N] [--root DIR]
+    rtap [-o out.tzx|.tap] [--after ZX-UX.tzx] prog.ssx[=NAME] ...     rtap --list tape ...
+    rvm  [options] prog.ssx [args]     rvm --shell     rvm --syscall prog.ssx ...   (§7)
 
 - **`rcc`** (`sdk/rcc/`) runs in this order:
   1. preprocessor and lexer (`lex.py`);
@@ -39,7 +39,7 @@ compile-time and run-time results are bit-identical.
 - **Native or bytecode:** a program is built native, unless its native image (image + bss + stack) would need more than `--max`, default 14,000 bytes — what ZX-UX can give a program loaded after login. Then it is rebuilt in bytecode, keeping the smaller. `--bytecode` and `--native` force the choice.
 - **`ras`** is a Z80 assembler (sjasmplus-compatible syntax for what the runtime uses) producing SSO1. `sdk/tests/test_ras.py` cross-checks 692 instruction forms against sjasmplus.
 - **`rld`** resolves symbols, pulls archive members on demand, lays out text, data and bss, and writes SSX1 with its relocation stream and checksum.
-- **`rtap`** writes SST1 cassette records (`SPEC-ELASTIC-R2` §6.2). `tools/mktapes.py` builds the corpus tapes.
+- **`rtap`** writes SST1 cassette records (`SPEC-ELASTIC-R2` §6.2). `tools/mktapes.py` builds the corpus tapes. `rtap --list` shows what a `.tap`/`.tzx` holds: programs (as `/dev/cassette/NAME`, size, memory needed), tar archives and their members (kind, size, path), the Spectrum's own files, and blocks that are not well-formed records. On ZX-UX, `tap t` (or `tar t` without an archive name) lists the programs and archives of a cassette.
 - **`rvm`** (§7).
 
 ## 3. The native code and the rcc ABI
@@ -121,7 +121,7 @@ extensions cost it only `ticks` and `screen` (about 100 bytes).
 
 **The screen.**
 - **Owning it:** a C program owns the 64 × 24 screen while it runs. The status line and the cursor stop, and the console is silent, so the shell's prompt and echo don't draw over it.
-- **The shell below the picture:** when a process that does not own the screen uses the console (the shell after `prog &`), the console takes text rows 21–22 and the status line comes back on row 23, as BASIC keeps its lower screen. From then on the runtime draws only rows 0–20 (pixel rows 0–167 from the top): text, UDGs and pixels below are skipped and still count as drawn, and `cls` and scrolling stop at row 20. The runtime reads the console's first row from the kernel byte `ttop` (5BE4h; 0 = whole screen). In rvm it is always 0.
+- **The shell below the picture:** when a process that does not own the screen uses the console (the shell after `prog &`), the console takes text rows 21–22 and the status line comes back on row 23, as BASIC keeps its lower screen. From then on the runtime draws only rows 0–20 (pixel rows 0–167 from the top): text, UDGs and pixels below are skipped and still count as drawn, and `cls` and scrolling stop at row 20. The runtime reads the console's first row from the kernel byte `ttop` (5BE4h; 0 = whole screen). In `rvm --syscall` it is always 0.
 - **Sharing it:** several programs can own the screen together. Only the first one clears it at start-up (`sys screen` returns E = 0 for it); the others leave it alone. That is how `hanoi` (left half) and `queens8` (right half) run side by side.
 - **The keyboard** turns raw at a program's first `getchar`, and cooked again at its exit. A program that never reads keys leaves the shell's keyboard alone, so you can type the next command while it runs.
 - **At exit:** the picture stays, in white on black, and the console continues on a new bottom line.
@@ -283,21 +283,80 @@ R1's target, 2.5 × the density of the C48 SDK's own native backend, is met: `ch
 
 ## 7. The ZX-UX VM (`rvm`)
 
-`rvm` runs the SSX1 file that goes to tape, on SkoolKit's C Z80 core with the real 48K ROM, T-state
-timing and 50 Hz frames. The ZX-UX system calls are emulated in Python:
-- `exit`, `read` (keyboard script or host files under `--root`), `write`, `open`/`close`/`seek`;
-- `break`, `stty`/`gtty`, `sleep` (in frames), `getpid`;
-- `ticks` (real frames, or `--ticks N` for deterministic runs), `screen`.
+`rvm` is a ZX Spectrum 48K that boots the real ZX-UX. No system call is emulated: the kernel,
+shell, loader and scheduler on the system tape built from `src/` (`build/ZX-UX.tap`) do all the
+work, so a program behaves in `rvm` as on a Spectrum, with the same memory, console, BREAK,
+screen sharing and multitasking.
 
-**Everything else runs as on the Spectrum:**
-- floats and BEEP, in the ROM itself;
-- the screen, drawn by the program into the 6,912-byte display file.
+**The machine (`sdk/zxmachine.py`).**
+- **Z80:** the bundled z80-python core with the `z80fast.py` handlers, the real 48K ROM.
+- **Frames and interrupts:** 69,888 T-states a frame. The maskable interrupt (IM 2 vector byte
+  FFh) is taken at the first instruction boundary in the first 32 T-states of a frame with IFF1
+  set, not straight after EI. A HALT idles in 4 T-state steps. There is no memory contention.
+- **Ports:** IN FEh reads the eight keyboard half-rows selected by the address's high byte and
+  the cassette EAR bit; OUT FEh sets the border, MIC and the beeper. Every border and beeper
+  change is logged with its T-state.
+- **Cassette:** the ROM's LD-BYTES and SA-BYTES are trapped (blocks load at once, saves are
+  captured), with the ROM's results: carry, IX, DE, memory, the border from BORDCR and
+  interrupts on, including failures (a wrong flag, a short or long block, a parity error, a VERIFY
+  difference). `--real-tape` plays the blocks as EAR pulses and lets the ROM load them.
+- **Snapshots:** `.z80` versions 1–3 in, version 3 out, with the T-state within the frame.
+- **Proof:** `tests/rvm_machine.py` runs every scripted corpus session (as `tests/ssxrun.py`, with
+  real tape pulses) on this machine and on the SkoolKit simulator side by side. Registers, the
+  T-state count and all of RAM are identical every 25 frames and at the end.
 
-**Memory:** a program gets exactly what the ZX-UX loader gives it (image, bss, heap and stack, then its arguments), so a stack that is too small fails in `rvm` too.
+**ZX-UX (`sdk/zxux.py`).**
+- **Boot:** reset, the ROM, `LOAD ""` from the system tape, login. The logged-in state (a `.z80`
+  and its absolute T-state) is cached under a key of the ROM, the tape, the user name, the typing
+  and the machine version (`$ZXUX_RVM_CACHE`, `%LOCALAPPDATA%\zx-ux-rvm` or
+  `~/.cache/zx-ux-rvm`). A run from the cache is identical to one that booted.
+- **Programs:** a program's SST1 records go on the cassette and `/dev/cassette/NAME args` (with
+  `&` for `--bg`) is typed at the shell.
+- **What rvm watches:** system calls at 6003h (fork's result gives the pid; `/etc/ldx`'s sys
+  ssxload the loading; the program's first own call the start; sys screen 0 or exit its last
+  picture; the parent's wait the exit status, FFFFh for BREAK), and four kernel variables
+  (`cur`, `p_pid`, `p_stat`, `scrown`), only read. `tools/build.py` writes their addresses to
+  `build/kernel.json` with the kernel's SHA-256; rvm refuses a tape whose kernel is not the one
+  described.
+- **Typing:** characters become keys as ZX-UX's L mode types them (SYMBOL SHIFT symbols, the
+  tty's keyword tokens for `~ | \ { } [ ]`, `` ` `` as SYMBOL SHIFT + X). They are held two
+  frames, three apart. A key is only pressed again once the ROM's KEYBOARD routine has let it go
+  (five frames), and a third key only once one of its two KSTATE sets is free.
+  `--compat-keys` types as the ZX-UX tests do (4 held, 7 apart).
 
-**Output:** the final screen as PNG/`.scr`/text, the exit status, the system-call count and the speaker edges.
+**The window (`sdk/rvmgui.py`, Tk).**
+- **Frames:** the machine runs in a thread and hands each frame through a two-deep queue; the
+  window paints at most one every 20 ms. If the host paints more slowly the machine waits: no
+  frame is dropped, and a frame is painted when it differs from the one before.
+- **Picture:** FLASH follows the frame count (16 frames a phase); the border is drawn line by line
+  from the colour each scan line started with; the scale is the largest that fits.
+- **Keys:** the host's characters, Enter, Backspace (DELETE), the arrows and Esc (EDIT).
+  Shift+Space is BREAK (held 30 frames, under the ROM's repeat delay).
+- **The end:** the window keeps the program's last picture, the footer turns red and says how it
+  ended, and Shift+Space closes it; rvm's exit status is the program's. With `--keep` the window
+  stays live at the ZX-UX shell, and `rvm --shell` opens it at the prompt.
 
-**Multitasking.** `rvm` runs one program. Multitasking between processes is ZX-UX's own and is tested on ZX-UX (`tests/ssxrun.py`, `tests/suite.py`). The C48 SDK's reference runner switches only at `yield`/`sleep`/`getchar` and has no frame clock, so screens are compared at the end of a scripted run with a fixed `ticks()`, as the SDK's own verification does (R1 review, SDK item 4).
+**Sound (`sdk/rvmsound.py`).** The beeper edges become 44.1 kHz samples by integrating the
+speaker level over each sample period. A BEEP's period is the ROM's own (8 × HL + 236 T-states,
+HL = INT(437500 / f − 30.125 + 0.5)), exact to the T-state. The window plays it in bursts of at
+most 10 frames (winsound on Windows, afplay, paplay or aplay elsewhere); `--wav F` writes the
+run's sound.
+
+**Headless:** `--png`, `--scr`, `--text` (the program's last picture; `--final` for the screen as
+ZX-UX left it), `--wav`, `--tape-out` (blocks saved to cassette), `--keys` (typed once the program
+runs; `{BREAK}`, `{WAIT n}` ...), `--frames N`. A run ends when the program does, when it has
+waited 50 frames for keys after the last one (`input`), at the frame limit, or when the cassette
+has run out before it loaded (`tape`). Exit status: the program's (255 after BREAK), 0 for `input`
+and `frames`, 1 if it did not start, 2 for an error.
+
+**Multitasking.** `--bg P.ssx[:A,B]` starts programs in the background first, so several share
+the machine as on ZX-UX (`hanoi` and `queens8` share the screen, and a program that does not
+fit is refused by the loader, as on the Spectrum).
+
+**`rvm --syscall`** is the earlier VM: the program at 8000h, the system calls emulated in Python
+(`exit`, `read`/`write`/`open`, `break`, `stty`, `sleep`, `ticks` with `--ticks N`, `screen`,
+files under `--root`). It has no kernel, scheduler or console, and stays for quick, deterministic
+checks (`sdk/tests/vm_checks.py`, the C48 conformance suite).
 
 ## 8. Acceptance
 
@@ -323,7 +382,16 @@ Programs the reference cannot run to completion (`hanoi --verify`, `queens8`, th
 
 The ZX-UX screen is saved as a PNG at the last frame the program owned it.
 
-**Result: 73/73.** `chess` and `write48` run in bytecode, `write48` and `chess` with the window lent. Four scripted games are seeded from `ticks()`, which on ZX-UX is the real clock (`hangman`, `trek`, `snake`, `arith`). For them the ZX-UX check is that the keys were taken (`zxux_text` in `runs.json`), since a different seed plays a different game.
+**Result: 73/73.** `chess` and `write48` run in bytecode, `write48` and `chess` with the window lent.
+
+**In rvm — `python3 tests/rvm_corpus.py [--native|--bytecode]`.** Every session of `runs.json` is run
+by `rvm` as a user runs it: ZX-UX booted, the program typed as `/dev/cassette/NAME`, loaded through
+the tape trap, keys typed once it runs. A session passes when the program runs, shows its expected
+ZX-UX text, and ends with its expected status where that does not depend on the clock. Two
+negative cases are checked as well: `security/seckern.c` must not compile, and the LM program
+(`ailmzx48`), whose SSX1 file is bigger than ZX-UX can load, must be refused by the loader ("not
+enough memory", status 1). All 58 C48 sources other than LM are covered. `tests/rvm_machine.py`
+(the machine against SkoolKit) and `tests/rvm_gui.py` (the window) complete the checks. Four scripted games are seeded from `ticks()`, which on ZX-UX is the real clock (`hangman`, `trek`, `snake`, `arith`). For them the ZX-UX check is that the keys were taken (`zxux_text` in `runs.json`), since a different seed plays a different game.
 
 ## 9. Sizes
 

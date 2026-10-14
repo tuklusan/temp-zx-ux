@@ -1,663 +1,364 @@
 #!/usr/bin/env python3
-"""rvm - the ZX-UX virtual machine: run an SSX1 C48 program on the host.
+"""rvm - the ZX-UX virtual machine: run C48 programs on the real ZX-UX.
 
-The program runs on the SDK's bundled Z80 (zxcore.py: z80-python core and the
-real 48K ROM, no other dependencies); the ZX-UX kernel's
-system-call interface (call 6003h) is emulated in Python, including the C
-support calls (ticks, screen).  Floats and BEEP are the program's own calls
-into the ROM, run here as on the Spectrum.  What runs is the same SSX1 file
-that goes to tape.
+rvm emulates a 48K ZX Spectrum (zxmachine.py), boots the ZX-UX system tape
+built from this repository's src/ (build/ZX-UX.tap), logs in, and runs the
+program from the cassette exactly as on a Spectrum: the shell types
+/dev/cassette/NAME, /etc/ldx loads it, the kernel schedules it.  The
+kernel is never reimplemented; rvm only plays the tape, presses keys and
+watches the system calls (zxux.py).
 
-  rvm.py prog.ssx [args...] [--keys TEXT] [--frames N] [--scr F] [--png F]
-         [--text] [--root DIR] [--ticks N] [--load ADDR] [--trace]
+  rvm [options] prog.ssx [args...]     run a program (a window if possible)
+  rvm [options] --shell                ZX-UX at the shell prompt, in a window
+  rvm --syscall prog.ssx ...           the fast system-call-level VM
+                                       (rvmsys.py; its own options)
 
-  --keys TEXT   keyboard input for getchar (\\n = ENTER); end of input ends
-                the run (status 'input')
-  --frames N    stop after N emulated 50 Hz frames (default 3000)
-  --scr/--png   write the final screen (6912-byte .scr / PNG)
-  --text        print the final screen as text
-  --ticks N     fixed value returned by ticks() (deterministic runs)
-  --root DIR    host directory whose files the program can open (read on
-                first use); rvm keeps the program's file system in memory
-                for the run and never writes to the host.  A program's exec
-                ends the run (status 'exec')
+Window (the default when a display is available and no output option is
+given): every emulated frame is shown, none is dropped; if the host is
+slow the program slows down instead.  Shift+Space is BREAK while the
+program runs; when it has ended, the footer says so and Shift+Space (or
+the close button) closes the window.  The beeper plays at its exact
+pitch.
+
+Options:
+  --keys TEXT     keys typed once the program has started (see below)
+  --keygap N      frames waited before each of those keys (default 0)
+  --frames N      stop after N frames from the program's start
+                  (headless default 6000; the window has no limit)
+  --png F         write the program's last picture as PNG (headless)
+  --scr F         ... as a 6912-byte screen file
+  --text          print it as text (the ZX-UX console font)
+  --final         use the final screen (with the shell) instead
+  --wav F         write the sound of the run as a WAV file
+  --bg P.ssx[:A,B]  run P in the background first (P A B &); repeatable
+  --tape F        more cassette blocks (.tap/.tzx) after the program's
+  --tape-out F    write the blocks the run saved to cassette (.tap)
+  --real-tape     load from the cassette as EAR pulses through the ROM
+                  (slow, as on a Spectrum) instead of the fast tape trap
+  --system F      the ZX-UX system tape (default ../build/ZX-UX.tap; its
+                  kernel.json must be next to it)
+  --snapshot F    start from this .z80 (taken anywhere before the login
+                  prompt) instead of booting
+  --user NAME     log in as NAME (default root)
+  --no-cache      boot from the tape even if the login state is cached
+  --compat-keys   type as the ZX-UX tests do (4 frames held, 7 apart)
+  --headless      no window;  --gui  a window even with output options
+  --scale N       window scale (default: the largest that fits)
+  --mute          no sound;  --keep  keep the window at the shell after
+                  the program ends;  --verbose  report what happens
+
+Keys: \\n is ENTER, \\b DELETE; {BREAK} {EDIT} {DELETE} {UP} {DOWN}
+{LEFT} {RIGHT} {ENTER} {SPACE}; {WAIT n} waits n frames.
+
+Headless, rvm stops when the program ends, when it has waited for keys
+for 50 frames after the last one was typed ('input'), when the frame
+limit is reached, or when the cassette has run out before it started.
+Exit status: the program's (255 if BREAK killed it); 0 for 'input' and
+'frames'; 1 if it did not start; 2 for errors.
 """
 import os
 import sys
-import struct
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE)
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
 
-import rld                                               # noqa: E402
-import zxcore                                            # noqa: E402
+from zxscreen import font_bytes, screen_text, write_png   # noqa: E402,F401
+import zxux                                       # noqa: E402
+from zxux import RvmError                         # noqa: E402
 
-FRAME = 69888
-SYS = 0x6003
-FONT = 0x5E00
-EINVAL, ENOENT, EBADF, EIO = 22, 2, 9, 5
-ESRCH, ECHILD, EAGAIN, ENOMEM, EEXIST, ENOTDIR, EISDIR, EMFILE, ENOTTY = 3, 10, 11, 12, 17, 20, 21, 24, 25
-PID = 1
-EPOCH = 378691200                   # 1 Jan 1982 00:00 (ZX-UX's default date)
-NAMES = dict(enumerate('rele exit fork read write open close wait creat link unlink exec '
-                       'chdir time mkdir chmod chown break stat seek tell mount umount '
-                       'setuid getuid stime quit intr fstat cemt mdate stty gtty ilgins '
-                       'sleep kill getpid zxpack ticks screen ssxload'.split()))
+# the system-call-level VM, for the tools and tests that use it directly
+from rvmsys import VM, VFS, FSError, Stop        # noqa: E402,F401
+
+TAPE_WAIT = 100            # frames the loader may wait for an empty cassette
 
 
-def font_bytes():
-    return open(zxcore.FONT, 'rb').read()[8:8 + 384]
-
-
-class FSError(Exception):
-    def __init__(self, code):
-        self.code = code
-
-
-class Node:
-    _ino = 41
-
-    def __init__(self, isdir, mode=0o17, data=b''):
-        Node._ino += 1
-        self.ino = Node._ino
-        self.isdir = isdir
-        self.mode = mode & 0x3F
-        self.data = bytearray(data)
-        self.nlink = 1
-        self.mtime = EPOCH
-        self.entries = {} if isdir else None
-
-
-class VFS:
-    """rvm's file system: kept in memory for the run, never written back to
-    the host.  --root DIR supplies files (read on first use).  Results and
-    error numbers follow the ZX-UX kernel's calls (src/fs.asm)."""
-    NUFILE = 10
-
-    def __init__(self, root):
-        self.root = root
-        self.top = Node(True)
-        self._dots(self.top, self.top)
-        self.cwd = self.top
-        self.fds = {}
-
-    @staticmethod
-    def _dots(d, parent):
-        # '.' and '..' are ordinary entries, as in v1: the system's own
-        # directories have them, a directory made by the mkdir call does not
-        d.entries[b'.'] = d
-        d.entries[b'..'] = parent
-
-    # path lookup: (directory node, last name)
-    def _walk(self, path, want_parent=False):
-        node = self.top if path.startswith(b'/') else self.cwd
-        parts = [p for p in path.split(b'/') if p]
-        trail = []
-        if want_parent:
-            if not parts:
-                raise FSError(ENOENT)
-            parts, last = parts[:-1], parts[-1]
-        for p in parts:
-            node = self._child(node, p, trail)
-            if node is None:
-                raise FSError(ENOENT)
-            if not node.isdir:
-                raise FSError(ENOTDIR)
-        return (node, last) if want_parent else node
-
-    def _child(self, d, name, trail):
-        n = d.entries.get(name)
-        if n is None and self.root and getattr(d, 'host', d is self.top):
-            hp = os.path.join(self.root, *self._hostpath(d), name.decode('latin-1'))
-            if os.path.isdir(hp):
-                n = Node(True)
-                n.host = True
-                self._dots(n, d)
-            elif os.path.isfile(hp):
-                n = Node(False, data=open(hp, 'rb').read())
-            if n is not None:
-                n.parent = d
-                n.hostname = name
-                d.entries[name] = n
-        return n
-
-    def _hostpath(self, d):
-        out = []
-        while d is not self.top and d is not None:
-            out.append(d.hostname.decode('latin-1'))
-            d = d.parent
-        return out[::-1]
-
-    def lookup(self, path):
-        d, name = self._walk(path, True) if path.strip(b'/') else (None, None)
-        if d is None:
-            return self.top
-        n = self._child(d, name, [])
-        if n is None:
-            raise FSError(ENOENT)
-        return n
-
-    def _fd(self, node, flags):
-        for fd in range(3, self.NUFILE):
-            if fd not in self.fds:
-                self.fds[fd] = {'node': node, 'pos': 0, 'flags': flags}
-                return fd
-        raise FSError(EMFILE)
-
-    def _get(self, fd):
-        f = self.fds.get(fd)
-        if f is None:
-            raise FSError(EBADF)
-        return f
-
-    def open(self, path, mode):
-        n = self.lookup(path)
-        flags = 1 if mode == 0 else 2 if mode == 1 else 3
-        if flags & 2 and n.isdir:
-            raise FSError(EISDIR)
-        return self._fd(n, flags)
-
-    def creat(self, path, mode):
-        try:
-            n = self.lookup(path)
-        except FSError:
-            d, name = self._walk(path, True)
-            n = Node(False, mode)
-            n.parent = d
-            n.hostname = name
-            d.entries[name] = n
-        else:
-            if n.isdir:
-                raise FSError(EISDIR)
-            n.data = bytearray()
-        return self._fd(n, 2)
-
-    def close(self, fd):
-        if fd <= 2 and fd not in self.fds:
-            return
-        self._get(fd)
-        del self.fds[fd]
-
-    def read(self, fd, count):
-        f = self._get(fd)
-        if not f['flags'] & 1:
-            raise FSError(EBADF)
-        data = self._bytes(f['node'])[f['pos']:f['pos'] + count]
-        f['pos'] += len(data)
-        return bytes(data)
-
-    def _bytes(self, n):
-        if n.isdir:
-            out = bytearray()
-            for name, c in n.entries.items():
-                out += bytes((c.ino & 255, c.ino >> 8)) + name[:8].ljust(8, b'\0')
-            return out
-        return n.data
-
-    def write(self, fd, data):
-        f = self._get(fd)
-        if not f['flags'] & 2:
-            raise FSError(EBADF)
-        n = f['node']
-        end = f['pos'] + len(data)
-        if len(n.data) < f['pos']:
-            n.data += bytes(f['pos'] - len(n.data))
-        n.data[f['pos']:end] = data
-        f['pos'] = end
-        return len(data)
-
-    def seek(self, fd, off, whence):
-        f = self._get(fd)
-        if whence == 0:
-            pos = off
-        elif whence == 1:
-            pos = f['pos'] + off
-        else:
-            pos = len(self._bytes(f['node'])) + off
-        f['pos'] = pos & 0xFFFF
-        return f['pos']
-
-    def tell(self, fd):
-        return self._get(fd)['pos']
-
-    def link(self, old, new):
-        n = self.lookup(old)
-        try:
-            self.lookup(new)
-        except FSError:
-            pass
-        else:
-            raise FSError(EEXIST)
-        d, name = self._walk(new, True)
-        d.entries[name] = n
-        n.nlink += 1
-
-    def unlink(self, path):
-        d, name = self._walk(path, True)
-        n = self._child(d, name, [])
-        if n is None:
-            raise FSError(ENOENT)
-        del d.entries[name]
-        n.nlink -= 1
-
-    def chdir(self, path):
-        n = self.lookup(path)
-        if not n.isdir:
-            raise FSError(ENOTDIR)
-        self.cwd = n
-
-    def mkdir(self, path, mode):
-        try:
-            self.lookup(path)
-        except FSError:
-            pass
-        else:
-            raise FSError(EEXIST)
-        d, name = self._walk(path, True)
-        n = Node(True, mode)
-        n.parent = d
-        n.hostname = name
-        d.entries[name] = n
-
-    def chmod(self, path, mode):
-        n = self.lookup(path)
-        n.mode = mode & 0x3F
-
-    def mdate(self, path, t):
-        self.lookup(path).mtime = t
-
-    def _stat(self, n):
-        flags = 0x8000 | (0x4000 if n.isdir else 0) | n.mode
-        size = len(self._bytes(n))
-        b = bytearray(34)
-        b[0:2] = bytes((n.ino & 255, n.ino >> 8))
-        b[2:4] = bytes((flags & 255, flags >> 8))
-        b[4] = n.nlink & 255
-        b[6:8] = bytes((size & 255, (size >> 8) & 255))
-        b[28:32] = n.mtime.to_bytes(4, 'little')      # i.mtim (i-node +26, after the i-number)
-        return bytes(b)
-
-    def stat(self, path):
-        return self._stat(self.lookup(path))
-
-    def fstat(self, fd):
-        if fd <= 2 and fd not in self.fds:
-            raise FSError(EBADF)
-        return self._stat(self._get(fd)['node'])
-
-    def size(self, path):
-        n = self.lookup(path)
-        return len(self._bytes(n)) & 0xFFFF
-
-    def free_bytes(self):
-        return 10000
-
-    def free_inodes(self):
-        return 16
-
-
-class Stop(Exception):
-    def __init__(self, why, status=0):
-        self.why = why
-        self.status = status
-
-
-class Tracer:
+class Options:
     def __init__(self):
-        self.border = 0
-        self.spk = 0
-        self.edges = 0          # speaker (EAR/MIC bit 4) changes: BEEP
-
-    def read_port(self, port):
-        return 0xFF
-
-    def write_port(self, port, value):
-        if not port & 1:
-            self.border = value & 7
-            if (value ^ self.spk) & 0x10:
-                self.edges += 1
-            self.spk = value
-
-
-class VM:
-    def __init__(self, ssx, args=(), keys=b'', root=None, fixed_ticks=None, load=0x8000):
-        hdr = rld.parse_ssx(ssx)
-        self.hdr = hdr
-        self.tr = Tracer()
-        self.zx = zxcore.Spectrum(self.tr.write_port, self.tr.read_port)
-        mem = self.zx.mem
-        mem[FONT:FONT + 384] = font_bytes()
-        img = rld.relocate(hdr['image'], hdr['relocs'], load)
-        mem[load:load + len(img)] = bytes(img)
-        end = load + len(img) + hdr['bss'] + hdr['heap']
-        argv0 = [b'prog'] + [a.encode() for a in args]
-        # as ZX-UX's loader: image, bss, heap, stack, then the arguments
-        top = load + max(len(img) + hdr['bss'] + hdr['heap'] + hdr['stack'], len(ssx)) \
-            + sum(len(a) + 1 for a in argv0) + 2 * len(argv0) + 6
-        if top > 0x10000:
-            raise SystemExit('rvm: program does not fit (needs %d bytes)' % (top - load))
-        top = min(top, 0x10000)
-        # arguments (ZX-UX exec layout): SP -> argc, argv..., 0, strings
-        argv = [b'prog'] + [a.encode() for a in args]
-        strs = b''.join(a + b'\0' for a in argv)
-        sp = (top - len(strs)) & 0xFFFE
-        mem[sp:sp + len(strs)] = strs
-        ptrs = []
-        p = sp
-        for a in argv:
-            ptrs.append(p)
-            p += len(a) + 1
-        vec = [len(argv)] + ptrs + [0]
-        sp -= 2 * len(vec)
-        for i, v in enumerate(vec):
-            mem[sp + 2 * i] = v & 255
-            mem[sp + 2 * i + 1] = v >> 8
-        self.load = load
-        self.top = top
-        self.brk = end
-        self.zx.set(sp=sp, pc=(load + hdr['entry']) & 0xFFFF, iy=0x5C3A, im=1)
-        self.mem = mem
-        self.keys = list(keys)
-        self.fixed_ticks = fixed_ticks
-        self.root = root
-        self.fs = VFS(root)
-        self.brk0 = end
-        self.time0 = EPOCH
-        self.intr = 1
-        self.ttymode = 0x10
-        self.exec_req = None
-        self.out = bytearray()
-        self.screen_owned = False
-        self.tbase = 0
-        self.syscalls = 0
-
-    # ------------------------------------------------------------ memory
-    def rd(self, a):
-        return self.mem[a] | self.mem[a + 1] << 8
-
-    def wr(self, a, v):
-        self.mem[a] = v & 255
-        self.mem[(a + 1) & 0xFFFF] = (v >> 8) & 255
-
-    def cstr(self, a):
-        out = bytearray()
-        while self.mem[a]:
-            out.append(self.mem[a])
-            a += 1
-        return bytes(out)
-
-    def clock(self):
-        return (self.time0 + self.frames() // 50) & 0xFFFFFFFF
-
-    def frames(self):
-        return (self.zx.t + self.tbase) // FRAME
-
-    # ------------------------------------------------------------ run
-    def run(self, max_frames=3000, trace=False):
-        zx = self.zx
-        limit = max_frames * FRAME
-        try:
-            while True:
-                t = zx.t + self.tbase
-                if t >= limit:
-                    raise Stop('frames')
-                if zx.run((SYS,), min(zx.t + FRAME, limit - self.tbase)):
-                    self.syscall(trace)
-        except Stop as s:
-            self.status = s.status
-            return s.why
-
-    def syscall(self, trace):
-        zx = self.zx
-        a = zx.a
-        hl = zx.hl
-        de = zx.de
-        bc = zx.bc
-        self.syscalls += 1
-        if trace:
-            print('sys %s(%d) hl=%04x de=%04x bc=%04x' % (NAMES.get(a, '?'), a, hl, de, bc), file=sys.stderr)
-        fs = self.fs
-        err = None
-        res = 0
-        try:
-            if a == 0:                       # rele / yield
-                pass
-            elif a == 1:                     # exit
-                raise Stop('exit', hl & 255)
-            elif a == 2:                     # fork: an SSX1 program cannot
-                err = EAGAIN
-            elif a == 3:                     # read
-                if hl == 0:
-                    if not self.keys:
-                        raise Stop('input')
-                    n = 0
-                    if bc and self.keys:
-                        self.mem[de] = self.keys.pop(0)
-                        n = 1
-                    res = n
-                else:
-                    data = fs.read(hl, min(bc, 0x10000 - de))
-                    self.mem[de:de + len(data)] = data
-                    res = len(data)
-            elif a == 4:                     # write
-                data = bytes(self.mem[de:min(de + bc, 0x10000)])
-                if hl in (1, 2):
-                    self.out += data
-                    res = bc
-                else:
-                    res = fs.write(hl, data)
-            elif a == 5:                     # open
-                res = fs.open(self.cstr(hl), de & 0xFF)
-            elif a == 6:                     # close
-                fs.close(hl)
-            elif a == 7:                     # wait: no children
-                err = ECHILD
-            elif a == 8:                     # creat
-                res = fs.creat(self.cstr(hl), de)
-            elif a == 9:                     # link
-                fs.link(self.cstr(hl), self.cstr(de))
-            elif a == 10:                    # unlink
-                fs.unlink(self.cstr(hl))
-            elif a == 11:                    # exec: rvm runs one program
-                path = self.cstr(hl)
-                if not path.startswith((b'/dev/cassette/', b'/dev/tap/')):
-                    fs.lookup(path)          # ENOENT as the kernel would
-                argv = []
-                p = de
-                while de and self.rd(p):
-                    argv.append(self.cstr(self.rd(p)).decode('latin-1'))
-                    p += 2
-                self.exec_req = (path.decode('latin-1'), argv)
-                raise Stop('exec')
-            elif a == 12:                    # chdir
-                fs.chdir(self.cstr(hl))
-            elif a == 13:                    # time -> DE:HL
-                t = self.clock()
-                res = t & 0xFFFF
-                zx.de = t >> 16
-            elif a == 14:                    # mkdir
-                fs.mkdir(self.cstr(hl), de)
-            elif a == 15:                    # chmod
-                fs.chmod(self.cstr(hl), de)
-            elif a in (16, 23, 26, 29, 33):  # chown setuid quit cemt ilgins
-                pass
-            elif a == 17:                    # break
-                # as the kernel for an SSX1 program: inside its block, at
-                # least 128 bytes below the stack pointer
-                if hl < self.load or hl > ((zx.cpu.sp - 128) & 0xFFFF):
-                    err = ENOMEM
-                else:
-                    self.brk = hl
-                    res = hl
-            elif a == 18:                    # stat
-                self.mem[de:de + 34] = fs.stat(self.cstr(hl))
-            elif a == 19:                    # seek
-                res = fs.seek(hl, de, bc)
-            elif a == 20:                    # tell
-                res = fs.tell(hl)
-            elif a == 24:                    # getuid
-                res = 0
-            elif a == 25:                    # stime: DE:HL
-                self.time0 = (de << 16 | hl) - self.frames() // 50
-            elif a == 27:                    # intr
-                self.intr = hl & 0xFF
-            elif a == 28:                    # fstat
-                self.mem[de:de + 34] = fs.fstat(hl)
-            elif a == 30:                    # mdate
-                fs.mdate(self.cstr(hl), bc << 16 | de)
-            elif a in (31, 32):              # stty / gtty: the terminal only
-                if hl > 2 and hl not in fs.fds:
-                    err = EBADF
-                elif hl > 2:
-                    err = ENOTTY
-                elif a == 32:
-                    for i in range(6):
-                        self.mem[de + i] = 0
-                    self.mem[de + 4] = self.ttymode
-                else:
-                    self.ttymode = self.mem[de + 4] & 0x30
-            elif a == 34:                    # sleep (ticks)
-                self.tbase += hl * FRAME
-            elif a == 35:                    # kill
-                if hl == PID:
-                    raise Stop('killed', 0xFF)
-                err = ESRCH
-            elif a == 36:
-                res = PID
-            elif a == 37:                    # zxpack
-                if hl == 0:
-                    res = fs.free_bytes()
-                    zx.de = fs.free_inodes()
-                else:
-                    res = fs.size(self.cstr(hl))
-            elif a == 38:                    # ticks
-                if self.fixed_ticks is not None:
-                    res = self.fixed_ticks
-                else:
-                    res = self.frames() & 0xFFFF
-                zx.de = 0
-            elif a == 39:                    # screen
-                self.screen_owned = bool(hl)
-                res = FONT
-                zx.de = 0                       # DE = 0: the only owner
-            elif a == 40:                    # ssxload: /etc/ldx only
-                err = EINVAL
-            else:                            # 21, 22 (mount, umount), >40
-                err = EINVAL
-        except FSError as e:
-            err = e.code
-        # return from the call: result in HL, CF/A on error
-        cpu = zx.cpu
-        if err is not None:
-            zx.hl = 0xFFFF
-            cpu.a = err
-            cpu._f |= 1
-        else:
-            zx.hl = res & 0xFFFF
-            cpu._f &= 0xFE
-            cpu.a = 0
-        sp = cpu.sp
-        cpu.pc = self.rd(sp)
-        cpu.sp = (sp + 2) & 0xFFFF
-        zx.t += 200                       # system call overhead
-
-    # ------------------------------------------------------------ output
-    def screen(self):
-        return bytes(self.mem[0x4000:0x5B00])
+        self.prog = None
+        self.args = []
+        self.shell = False
+        self.keys = ''
+        self.keygap = 0
+        self.frames = None
+        self.png = self.scr = self.wav = None
+        self.text = self.final = False
+        self.bg = []
+        self.tape = None
+        self.tape_out = None
+        self.real_tape = False
+        self.system = None
+        self.snapshot = None
+        self.user = 'root'
+        self.cache = True
+        self.compat = False
+        self.headless = self.gui = False
+        self.scale = None
+        self.mute = self.keep = self.verbose = False
 
 
-def screen_text(scr, font=None):
-    fb = font or font_bytes()
-    glyphs = {}
-    for c in range(32, 128):
-        g = fb[(c - 32) * 4:(c - 32) * 4 + 4]
-        rows = bytes(n for b in g for n in (b >> 4, b & 15))
-        glyphs.setdefault(rows, chr(c))
-        glyphs.setdefault(bytes(15 - x for x in rows), chr(c))
-    lines = []
-    for row in range(24):
-        s = ''
-        for col in range(64):
-            a = ((row & 0x18) << 8) + ((row & 7) << 5) + col // 2
-            sh = 4 if col % 2 == 0 else 0
-            g = bytes((scr[a + (i << 8)] >> sh) & 15 for i in range(8))
-            s += glyphs.get(g, '#' if any(g) else ' ')
-        lines.append(s.rstrip())
-    return '\n'.join(lines)
+VALUED = {'--keys': 'keys', '--keygap': 'keygap', '--frames': 'frames', '--png': 'png',
+          '--scr': 'scr', '--wav': 'wav', '--tape': 'tape', '--tape-out': 'tape_out',
+          '--system': 'system', '--snapshot': 'snapshot', '--user': 'user', '--scale': 'scale'}
+FLAGS = {'--text': 'text', '--final': 'final', '--real-tape': 'real_tape',
+         '--compat-keys': 'compat', '--headless': 'headless', '--gui': 'gui',
+         '--mute': 'mute', '--keep': 'keep', '--verbose': 'verbose', '--shell': 'shell'}
 
 
-def write_png(scr, fname, border=0, scale=2, bw=16):
-    import zlib
-    pal = [(0, 0, 0), (0, 0, 205), (205, 0, 0), (205, 0, 205), (0, 205, 0), (0, 205, 205), (205, 205, 0), (205, 205, 205),
-           (0, 0, 0), (0, 0, 255), (255, 0, 0), (255, 0, 255), (0, 255, 0), (0, 255, 255), (255, 255, 0), (255, 255, 255)]
-    W, H = 256 + 2 * bw, 192 + 2 * bw
-    bc = pal[border & 7]
-    rows = []
-    for y in range(H):
-        row = []
-        sy = y - bw
-        for x in range(W):
-            sx = x - bw
-            if 0 <= sx < 256 and 0 <= sy < 192:
-                a = ((sy & 0xC0) << 5) | ((sy & 7) << 8) | ((sy & 0x38) << 2) | (sx >> 3)
-                at = scr[6144 + (sy >> 3) * 32 + (sx >> 3)]
-                bit = scr[a] >> (7 - (sx & 7)) & 1
-                br = 8 if at & 0x40 else 0
-                ink, pap = (at & 7) + br, ((at >> 3) & 7) + br
-                row.append(pal[ink if bit else pap])
-            else:
-                row.append(bc)
-        row = [c for c in row for _ in range(scale)]
-        for _ in range(scale):
-            rows.append(row)
-    raw = b''.join(b'\0' + bytes(v for c in r for v in c) for r in rows)
-
-    def chunk(t, d):
-        c = struct.pack('>I', len(d)) + t + d
-        return c + struct.pack('>I', zlib.crc32(t + d) & 0xffffffff)
-    png = (b'\x89PNG\r\n\x1a\n' +
-           chunk(b'IHDR', struct.pack('>IIBBBBB', W * scale, H * scale, 8, 2, 0, 0, 0)) +
-           chunk(b'IDAT', zlib.compress(raw, 9)) + chunk(b'IEND', b''))
-    open(fname, 'wb').write(png)
-
-
-def main(argv):
-    opts = {'--keys': None, '--frames': '3000', '--scr': None, '--png': None, '--root': None,
-            '--ticks': None, '--load': '0x8000'}
-    flags = set()
+def parse(argv):
+    """rvm's options may come anywhere, as in the earlier rvm; the first
+    other word is the program and the rest are its arguments."""
+    o = Options()
     pos = []
     i = 0
     while i < len(argv):
         a = argv[i]
-        if a in opts:
-            opts[a] = argv[i + 1]
+        if a in VALUED or a == '--bg':
+            if i + 1 >= len(argv):
+                raise RvmError('%s needs a value' % a)
+            v = argv[i + 1]
             i += 2
-            continue
-        if a in ('--text', '--trace'):
-            flags.add(a)
+            if a == '--bg':
+                path, _, rest = v.partition(':')
+                o.bg.append((path, [x for x in rest.split(',') if x]))
+                continue
+            if a in ('--keygap', '--frames', '--scale'):
+                try:
+                    v = int(v, 0)
+                except ValueError:
+                    raise RvmError('%s needs a number, not %r' % (a, v))
+                if v < (1 if a == '--scale' else 0):
+                    raise RvmError('%s is out of range' % a)
+            setattr(o, VALUED[a], v)
+        elif a == '--no-cache':
+            o.cache = False
             i += 1
-            continue
-        pos.append(a)
-        i += 1
-    if not pos:
+        elif a in FLAGS:
+            setattr(o, FLAGS[a], True)
+            i += 1
+        elif a.startswith('--') and not pos:
+            raise RvmError('unknown option %s (rvm --help)' % a)
+        else:
+            pos.append(a)
+            i += 1
+    if o.shell:
+        if pos:
+            raise RvmError('--shell takes no program')
+    elif not pos:
+        raise RvmError('no program given (rvm --help)')
+    else:
+        o.prog, o.args = pos[0], pos[1:]
+    return o
+
+
+def read_ssx(path):
+    try:
+        data = open(path, 'rb').read()
+    except OSError as e:
+        raise RvmError('%s: %s' % (path, e.strerror))
+    import rld
+    try:
+        rld.parse_ssx(data)
+    except SystemExit as e:
+        raise RvmError('%s: not a valid SSX1 program (%s)' % (path, e))
+    except Exception as e:
+        raise RvmError('%s: not a valid SSX1 program (%s)' % (path, e))
+    return data
+
+
+class Runner:
+    """Boots ZX-UX, starts the programs and runs frame by frame; used by
+    the headless loop below and by the window (rvmgui.py)."""
+
+    def __init__(self, o, log=None):
+        self.o = o
+        self.log = log or (lambda m: None)
+        kb = zxux.Keyboard(compat=o.compat)
+        self.session = zxux.Session(system=o.system, user=o.user, cache=o.cache,
+                                    snapshot=o.snapshot, keyboard=kb, log=self.log)
+        self.keys = zxux.parse_keys(o.keys) if o.keys else []
+        self.extra = zxux.read_tape(o.tape) if o.tape else []
+        self.progs = [(read_ssx(p), zxux.program_name(p), a, True) for p, a in o.bg]
+        if o.prog:
+            self.progs.append((read_ssx(o.prog), zxux.program_name(o.prog), o.args, False))
+        self.fg = None
+        self.keys_sent = False
+        self.start_frame = None
+        self.why = None
+        self.beeper = None
+        self.pcm = bytearray() if o.wav else None
+        self.empty_since = None
+
+    def start(self):
+        s = self.session
+        s.boot()
+        m = s.m
+        import rvmsound
+        self.beeper = rvmsound.Beeper(m.t)
+        m.take_speaker()
+        m.saved = []
+        names = set()
+        for i, (ssx, name, args, bg) in enumerate(self.progs):
+            if name in names:
+                raise RvmError('two programs named %s on one cassette' % name)
+            names.add(name)
+            extra = self.extra if i == len(self.progs) - 1 else []
+            if self.o.real_tape:
+                if len(self.progs) > 1:
+                    raise RvmError('--real-tape plays one program')
+                import rtap
+                job = s.launch(ssx, name, args, bg)
+                m.cassette = []
+                m.play_pulses(rtap.records(ssx, name) + list(extra))
+            else:
+                job = s.launch(ssx, name, args, bg, extra)
+            if not bg:
+                self.fg = job
+        self.start_frame = m.frame
+
+    def frame(self):
+        """Run one frame; return (Frame, pcm bytes, sounding)."""
+        s = self.session
+        f = s.step()
+        fg = self.fg
+        if fg is not None and not self.keys_sent and fg.started is not None:
+            acts = []
+            for a in self.keys:
+                if self.o.keygap:
+                    acts.append(('wait', self.o.keygap))
+                acts.append(a)
+            s.kb.add(acts)
+            self.keys_sent = True
+        edges = s.m.take_speaker()
+        self.beeper.feed(edges)
+        pcm = self.beeper.render(s.m.t)
+        if self.pcm is not None:
+            self.pcm += pcm
+        return f, pcm, bool(edges)
+
+    def check(self):
+        """None while the run goes on, else why it stopped."""
+        s = self.session
+        fg = self.fg
+        m = s.m
+        if fg is None:
+            return None
+        if fg.ended is not None:
+            return 'killed' if fg.status == 0xFFFF else 'exit'
+        if fg.started is None:
+            if fg.loading is None and not m.cassette and m.tape_requests:
+                if self.empty_since is None:
+                    self.empty_since = m.frame
+                elif m.frame - self.empty_since >= TAPE_WAIT:
+                    return 'tape'
+            return None
+        if (self.keys_sent and fg.reading_since is not None and not s.kb.busy()
+                and m.frame - fg.reading_since >= zxux.INPUT_IDLE):
+            return 'input'
+        return None
+
+    def status_code(self):
+        why = self.why
+        if why == 'exit':
+            return self.fg.status & 0xFF
+        if why == 'killed':
+            return 255
+        if why in ('input', 'frames'):
+            return 0
+        return 1
+
+    def picture(self):
+        s = self.session
+        if self.o.final or self.fg is None:
+            return s.m.screen(), s.m.border
+        p = s.program_screen(self.fg)
+        return p if p else (s.m.screen(), s.m.border)
+
+    def finish_outputs(self):
+        o = self.o
+        scr, border = self.picture()
+        if o.scr:
+            open(o.scr, 'wb').write(scr)
+        if o.png:
+            write_png(scr, o.png, border)
+        if o.text:
+            print(screen_text(scr))
+        if o.wav:
+            import rvmsound
+            rvmsound.write_wav(o.wav, bytes(self.pcm))
+        if o.tape_out:
+            import zxmachine
+            open(o.tape_out, 'wb').write(zxmachine.tap_file(self.session.m.saved))
+
+    def summary(self):
+        s = self.session
+        fg = self.fg
+        what = fg.describe() if fg else 'shell'
+        n = s.m.frame - (self.start_frame or 0)
+        return ('rvm: %s: %s (%s) after %d frames, %d system calls%s'
+                % (fg.name if fg else 'ZX-UX', what, self.why, n, s.syscalls,
+                   '' if s.cache_hit is None else
+                   (', started from the cache' if s.cache_hit else ', booted from the tape')))
+
+
+def run_headless(o):
+    r = Runner(o, log=(lambda m: print('rvm: ' + m, file=sys.stderr)) if o.verbose else None)
+    r.start()
+    limit = o.frames if o.frames is not None else 6000
+    if r.fg is None:
+        raise RvmError('--shell needs the window (or give a program)')
+    while True:
+        r.frame()
+        why = r.check()
+        if why:
+            r.why = why
+            break
+        if r.fg.started is not None and r.session.m.frame - r.fg.started >= limit:
+            r.why = 'frames'
+            break
+        if r.fg.started is None and r.session.m.frame - r.start_frame >= limit + 3000:
+            r.why = 'not started'
+            break
+    r.finish_outputs()
+    print(r.summary(), file=sys.stderr)
+    return r.status_code()
+
+
+def want_window(o):
+    if o.headless:
+        return False
+    if o.gui or o.shell:
+        return True
+    if o.png or o.scr or o.text or o.wav or o.frames is not None or o.tape_out:
+        return False
+    if sys.platform.startswith('linux') and not os.environ.get('DISPLAY') \
+            and not os.environ.get('WAYLAND_DISPLAY'):
+        return False
+    try:
+        import tkinter        # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+def main(argv):
+    if argv and argv[0] == '--syscall':
+        import rvmsys
+        return rvmsys.main(argv[1:])
+    if not argv or argv[0] in ('-h', '--help'):
         print(__doc__)
+        return 0 if argv else 2
+    try:
+        o = parse(argv)
+        if want_window(o):
+            import rvmgui
+            return rvmgui.run(o)
+        return run_headless(o)
+    except RvmError as e:
+        print('rvm: %s' % e, file=sys.stderr)
         return 2
-    keys = (opts['--keys'] or '').encode().decode('unicode_escape').encode('latin-1')
-    vm = VM(open(pos[0], 'rb').read(), pos[1:], keys, opts['--root'],
-            int(opts['--ticks']) if opts['--ticks'] else None, int(opts['--load'], 0))
-    why = vm.run(int(opts['--frames']), '--trace' in flags)
-    scr = vm.screen()
-    if opts['--scr']:
-        open(opts['--scr'], 'wb').write(scr)
-    if opts['--png']:
-        write_png(scr, opts['--png'], vm.tr.border)
-    if '--text' in flags:
-        print(screen_text(scr))
-    if vm.out:
-        sys.stdout.write(vm.out.decode('latin-1'))
-    print('rvm: stopped (%s) status %d after %d frames, %d system calls, %d speaker edges'
-          % (why, vm.status, vm.frames(), vm.syscalls, vm.tr.edges), file=sys.stderr)
-    return vm.status if why == 'exit' else 0
+    except KeyboardInterrupt:
+        return 130
 
 
 if __name__ == '__main__':

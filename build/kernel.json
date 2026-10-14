@@ -1,0 +1,17 @@
+{
+ "format": "zx-ux-kernel/1",
+ "kernel_bytes": 8187,
+ "kernel_sha256": "11a47aeb7553618f38caae60546046b7f6fbae99d0d4706d7765ff6671a54a58",
+ "note": "Written by tools/build.py from the assembled kernel; read by sdk/rvm.",
+ "symbols": {
+  "KV": 23296,
+  "NPROC": 4,
+  "SFREE": 0,
+  "SZOMB": 3,
+  "cur": 23546,
+  "p_pid": 23308,
+  "p_stat": 23296,
+  "scrown": 23395
+ },
+ "syscall": 24579
+}

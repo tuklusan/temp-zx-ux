@@ -3,9 +3,9 @@
 
   build.py SJASMPLUS_PATH
 
-Outputs (in ../build): unix.bin, fs.img, ZX-UX.tzx, ZX-UX.tap
+Outputs (in ../build): unix.bin, fs.img, ZX-UX.tzx, ZX-UX.tap, kernel.json
 """
-import os, re, struct, subprocess, sys
+import hashlib, json, os, re, struct, subprocess, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import zxpack
@@ -240,6 +240,26 @@ def write_bootinfo(kernel_bytes, free_bytes, process_count):
     return True
 
 
+# The kernel addresses sdk/rvm reads (never writes) while it runs the
+# real system: which process is running, the pids, the screen owners.
+# rvm checks kernel_sha256 against the kernel block on the tape it boots.
+RVM_SYMBOLS = ('KV', 'NPROC', 'SFREE', 'SZOMB', 'p_stat', 'p_pid', 'cur', 'scrown')
+
+
+def write_kernel_json(kern, syms):
+    info = {
+        'format': 'zx-ux-kernel/1',
+        'note': 'Written by tools/build.py from the assembled kernel; read by sdk/rvm.',
+        'kernel_sha256': hashlib.sha256(kern).hexdigest(),
+        'kernel_bytes': syms['kend'] - KBASE,
+        'syscall': KBASE + 3,
+        'symbols': {k: syms[k] for k in RVM_SYMBOLS},
+    }
+    with open(os.path.join(OUT, 'kernel.json'), 'w', newline='\n') as f:
+        json.dump(info, f, indent=1, sort_keys=True)
+        f.write('\n')
+
+
 def main():
     args = sys.argv[1:]
     while args and args[0] == '--add':
@@ -263,6 +283,7 @@ def main():
         raise SystemExit('boot figures did not settle after six builds')
     RD0 = syms['ITAB']
     open(os.path.join(OUT, 'unix.bin'), 'wb').write(kern)
+    write_kernel_json(kern, syms)
     open(os.path.join(OUT, 'fs.img'), 'wb').write(rd0)
     bas = basic_loader()
     blocks = [

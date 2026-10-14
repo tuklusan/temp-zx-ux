@@ -54,7 +54,7 @@ If the assembler is not on your search path, give its path:
 python3 tools/build.py /path/to/sjasmplus
 ```
 
-The main build writes four files:
+The main build writes five files:
 
 | File | What it contains |
 |---|---|
@@ -62,6 +62,7 @@ The main build writes four files:
 | `build/ZX-UX.tap` | Boot tape in TAP form |
 | `build/unix.bin` | Z80 system image |
 | `build/fs.img` | Starting RAM file system image |
+| `build/kernel.json` | The kernel's SHA-256 and the addresses `sdk/rvm` reads |
 
 The assembler also writes `src/unix.sym` and `src/unix.bin`.
 The build generates `src/ptab.inc` from the program list. It also
@@ -84,7 +85,8 @@ sdk/bin/rtap -o game.tzx game.ssx
 
 The first command builds `sdk/lib/libc48.ssa`.
 The other commands compile a C48 program and make a cassette record.
-The C48 compiler uses SkoolKit's 48K ROM support.
+The SDK needs only Python 3.11 or later; `sdk/bin/rvm game.ssx` runs the
+program on an emulated Spectrum that boots this ZX-UX (see `sdk/README.md`).
 
 On ZX-UX, type `/dev/cassette/game` and play the program tape.
 You can add program arguments after the name.
@@ -119,6 +121,12 @@ python3 tools/mtsnap.py
 python3 tests/ssxrun.py
 python3 sdk/tests/vm_checks.py --native
 python3 sdk/tests/vm_checks.py --bytecode
+python3 sdk/tests/test_rvm.py
+python3 sdk/tests/test_rtap.py
+python3 tests/rvm_corpus.py --native
+python3 tests/rvm_corpus.py --bytecode
+python3 tests/rvm_machine.py
+xvfb-run -a python3 tests/rvm_gui.py        # needs Tk; any display will do
 python3 tools/gallery.py
 ```
 

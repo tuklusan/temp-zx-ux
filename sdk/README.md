@@ -19,12 +19,24 @@ sdk/bin/rtap -o hello.tzx hello.ssx
 Load `build/ZX-UX.tzx` and log in.
 Type `/dev/cassette/hello` in ZX-UX, then play `hello.tzx`.
 
-You can also test the same program on your host (`rvm` keeps an
-in-memory file system for the run; `--root DIR` supplies files to read):
+Or run it on your host: `rvm` is a ZX Spectrum 48K that boots the real
+ZX-UX from `build/ZX-UX.tap`, logs in, and runs the program from the
+cassette exactly as above, in a window (every frame shown, Shift+Space
+is BREAK, and once the program has ended it closes the window):
 
 ```sh
-sdk/bin/rvm hello.ssx --png hello.png --text
+sdk/bin/rvm hello.ssx                    # in a window
+sdk/bin/rvm hello.ssx --text --png p.png # headless: the program's last picture
+sdk/bin/rvm --bg left.ssx right.ssx      # two programs, as "left &" then "right"
+sdk/bin/rvm --shell                      # ZX-UX at the shell prompt
+sdk/bin/rtap --list game.tzx             # what a tape file holds
 ```
+
+The first run boots ZX-UX from the tape (a second or two) and keeps the
+logged-in state in a cache; later runs start at the prompt at once.
+`rvm --help` lists the options.  `rvm --syscall` is the earlier, faster
+VM that emulates the system calls instead of running ZX-UX; the C48
+conformance and `vm_checks` use it.
 
 The tools need only Python 3.11 or later and its standard library.
 The compiler runs the real 48K ROM for float constants, and `rvm` runs
@@ -40,8 +52,8 @@ checked in built; `python3 sdk/lib/build.py` rebuilds it.
 | `rcc` | Compile C48 source into SSX1 code |
 | `ras` | Assemble Z80 source into SSO1 files |
 | `rld` | Link objects and SSA1 libraries |
-| `rtap` | Write programs to `.tap` or `.tzx` cassette files |
-| `rvm` | Run compiled programs in the host VM |
+| `rtap` | Write programs to `.tap` or `.tzx` cassette files; `--list` shows a tape's contents |
+| `rvm` | Run programs on an emulated Spectrum running the real ZX-UX |
 
 C48 covers small integer types, five-byte Spectrum floats,
 functions, pointers, arrays, recursion, and a set of library calls.
@@ -67,6 +79,9 @@ Two programs can share the screen with `build/c48-multitask.tzx`.
 The test settings are in `sdk/tests/runs.json`.
 The collection has 56 named programs and 17 extra test cases.
 Use `sdk/tests/vm_checks.py` for independent native and bytecode VM checks.
+`sdk/tests/test_rvm.py`, `test_rtap.py`, and the repository's
+`tests/rvm_corpus.py`, `tests/rvm_machine.py` and `tests/rvm_gui.py`
+check `rvm` and `rtap --list` (SPEC-SDK-R2 §7 and §8).
 `sdk/tests/test_z80fast.py` checks that the fast Z80 handlers equal the
 bundled core's, and `tests/c48-suite/` checks the toolchain against the
 C48 Rev 0.11 specification paragraph by paragraph.
