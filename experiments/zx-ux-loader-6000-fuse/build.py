@@ -17,7 +17,8 @@ ONE_T = 2280
 PILOT_T = 400
 PILOT_EDGES = 220
 SYNC_T = 250
-MINISYNC_T = 500
+SYNC2_T = 499
+MINISYNC_T = 501
 INTER_SEGMENT_MS = 20
 
 TOTAL_START = 0x5CCB
@@ -126,6 +127,8 @@ loader_data = bytearray(zblocks[1])
 assert len(loader_header) == 19 and len(loader_data) == 391
 assert xor_checksum(loader_header) == 0 and xor_checksum(loader_data) == 0
 
+# 64 polling counts comfortably spans a 2280-T "1".  The compare byte is
+# ONE_MAX-ZERO_MAX.  With a decision boundary of 39 polling cycles this is 25.
 off_max = patch_symbol_byte(loader_data, BIT_LOOP_MAX, 64)
 off_thr = patch_symbol_byte(loader_data, BIT_ONE_THESHLD, 25)
 loader_data[-1] = 0
@@ -174,8 +177,8 @@ for i, n in enumerate(sizes):
     tzx += generalized_data_block(
         header,
         [
-            ((PILOT_T,), PILOT_EDGES),
-            ((SYNC_T, MINISYNC_T), 1),
+            ((PILOT_T, PILOT_T), PILOT_EDGES // 2),
+            ((SYNC_T, SYNC2_T), 1),
         ],
     )
     tzx += generalized_data_block(
@@ -205,6 +208,6 @@ print("tzx_sha256", hashlib.sha256(tzx).hexdigest())
 print("zip_sha256", hashlib.sha256(ZIP.read_bytes()).hexdigest())
 print("payload", hex(ENTRY), hex(ENTRY + len(payload) - 1), len(payload))
 print("segments", len(sizes), sizes)
-print("timing", ZERO_T, ONE_T, PILOT_T, SYNC_T, MINISYNC_T)
+print("timing", ZERO_T, ONE_T, PILOT_T, SYNC_T, SYNC2_T, MINISYNC_T)
 print("tzx_size", len(tzx))
 assert 24000 < len(tzx) < 32000
