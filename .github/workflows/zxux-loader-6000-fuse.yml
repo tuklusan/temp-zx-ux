@@ -80,7 +80,7 @@ jobs:
             --source experiments/zx-ux-loader-6000-fuse/ZX-UX.tap \
             --text-lines experiments/zx-ux-loader-6000-fuse/text-lines.txt
           # Pin this structural candidate; Fuse proof below is required before release.
-          test "$(sha256sum experiments/zx-ux-loader-6000-fuse/output/zx-ux-new-loader-test.tzx | cut -d' ' -f1)" = "c15aa23d7ffb9ed7d5eb11d864cad54e48c04e030a5bb7777da813a3d9a45aa2"
+          test "$(sha256sum experiments/zx-ux-loader-6000-fuse/output/zx-ux-new-loader-test.tzx | cut -d' ' -f1)" = "36a693ce33c7c53c43bb13efa5178db2c0274ae23fc496a04bd8f338eba159e2"
           test -s experiments/zx-ux-loader-6000-fuse/output/zx-ux-new-loader-test.tzx
           unzip -t experiments/zx-ux-loader-6000-fuse/output/zx-ux-new-loader-test.tzx.zip
 
@@ -106,7 +106,7 @@ jobs:
           cat >"$d/debugger.txt" <<'DBG'
           breakpoint 0x6000
           breakpoint time 0 if spectrum:frames > 10500
-          breakpoint 0xc17e
+          breakpoint 0xc180
           commands 1
           print 60006000
           print z80:pc

@@ -71,7 +71,7 @@ def check(tzx,source,lines):
     assert rom[1][288:292]==bytes.fromhex('79ee004f')
     text=''.join(lines).encode('ascii')
     assert len(lines)==24 and len(text)==768
-    assert turbo[1][0].endswith(text) and len(turbo[1][0])==908
+    assert turbo[1][0].endswith(text) and len(turbo[1][0])==910
     # The last row must beep once, dwell, and then hand off at 0x6000.
     final_code=bytes.fromhex('11fa00219701cdb50306197610fdc30060')
     assert turbo[1][0].count(final_code)==1
@@ -85,8 +85,8 @@ def check(tzx,source,lines):
         n,load,dest,typ,crc,after,clear,*_=struct.unpack('<HHHBBHHBHBB',hdr)
         assert n==len(data) and crc==zq_crc(data) and dest==0 and typ==0
         assert clear==(0x5FFF if i==24 else 0), f"wrong final stack/interrupt handoff {clear:#x}"
-        assert pilots==[(0,(450,450)),(0,(250,499))]
-        assert reps==[(0,800),(1,1)]
+        assert pilots==[(0,(450,0)),(0,(450,450)),(0,(250,499))]
+        assert reps==[(0,1),(1,800),(2,1)]
         if i==0:
             assert load==0xc100 and after==0xc100
         else:

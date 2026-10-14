@@ -88,6 +88,9 @@ def build_display_hook(lines: list[str], *, base: int=HOOK_BASE, entry: int=0x60
     a.emit(0x2A);a.absolute('pointer') # LD HL,(pointer)
     a.emit(0x0E,COLS)          # LD C,32
     a.mark('character')
+    # Read EAR each character to keep Fuse loader detection active during
+    # screen rendering. The next LD A,(HL) overwrites this sampled value.
+    a.emit(0xDB,0xFE)
     a.emit(0x7E,0x23,0xE5,0xC5) # LD A,(HL); INC HL; PUSH HL; PUSH BC
     a.emit(0xD6,0x20,0x6F,0x26,0x00) # CHAR-32 -> L ; H=0
     a.emit(0x29,0x29,0x29)      # 8x glyph offset
