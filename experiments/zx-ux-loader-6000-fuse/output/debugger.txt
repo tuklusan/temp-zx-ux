@@ -28,6 +28,9 @@ print 90909090
 print z80:pc
 print spectrum:frames
 print 70707070
+print [0xc189]
+print [0xc18c]
+print [0xc18d]
 print [0xffef]
 print [0xfff0]
 print [0xfff1]
