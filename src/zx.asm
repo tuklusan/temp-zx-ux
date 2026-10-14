@@ -699,7 +699,7 @@ zunpack:
         or a
         sbc hl,de
         ld (zn),hl
-        jp zdone
+        jr zdone
 
 ; ---------------------------------------------------------------------
 ; zok: IX = i-node, HL = i-number -> NC if it may be packed now

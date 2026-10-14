@@ -1108,7 +1108,7 @@ syswait:
         ld a,b
         ld hl,p_pid
         call getw2
-        jp systimec.xj1_27  ; (shared tail)
+        jr systimec.xj1_27  ; (shared tail)
 .none:  ei
         ld a,ECHILD
         jp syserr
@@ -1931,15 +1931,13 @@ boot:
         di
         ld sp,KSTACK
         ld iy,05C3Ah
-        ; clear kernel globals (printer buffer)
+        ; clear kernel globals (printer buffer: 256 bytes)
+        xor a
         ld hl,KV
-        ld de,KV+1
-        ld bc,255
-        ld (hl),0
-        ldir
+        ld b,a
+        call zfill
         ld hl,MEMBOT            ; kernel scratch in MEMBOT: BASIC's
         ld b,15                 ; calculator left values there
-        xor a
         call zfill
         ; IM 2: vector FFFFh from the ROM, JR at FFFF -> JP isr at FFF4
         ld a,0C3h
@@ -1991,9 +1989,7 @@ boot:
         ld (a_top),hl           ; the arena ends below it
         ld hl,msg_ok
         call kputs
-        ; process 1  (slot 0)
-        xor a
-        ld (cur),a
+        ; process 1  (slot 0: cur is 0, the globals were cleared)
         ld a,SRUN
         ld (p_stat),a
         ld hl,1
