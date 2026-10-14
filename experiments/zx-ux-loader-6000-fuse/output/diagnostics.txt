@@ -1,4 +1,16 @@
-Fuse PID=3326 Xvfb PID=3320
-runner      3320    3319  0 06:27 ?        00:00:00 Xvfb :99 -screen 0 1280x900x24
-runner      3326    3319  0 06:27 ?        00:00:00 fuse --machine 48 --tape experiments/zx-ux-loader-6000-fuse/output/zx-ux-new-loader-test.tzx --auto-load --no-fastload --no-accelerate-loader --no-confirm-actions --debugger-command breakpoint 0x5ce7 breakpoint 0x0daf if z80:sp > 0xff00 breakpoint 0x6000 breakpoint time 0 if spectrum:frames > 8000 commands 1 print 11111111 print z80:pc print z80:sp continue end commands 2 print 22222222 print z80:pc print z80:sp continue end commands 3 print 60006000 print z80:pc print z80:sp print [0x6000] print [0x6001] print [0x6002] print [0x6003] print [0x6004] print [0x6005] print [0x6006] print [0x6007] print [0x6008] print [0x6009] print [0x600a] print [0x600b] print [0x600c] print [0x600d] print [0x600e] print [0x600f] end commands 4 print 90909090 print z80:pc print z80:sp print [0x6000] print [0x6001] print [0x6002] print [0x6003] print [0x6004] print [0x6005] print [0x6006] print [0x6007] print [0x6008] print [0x6009] print [0x600a] print [0x600b] print [0x600c] print [0x600d] print [0x600e] print [0x600f] end continue
-runner      3328    3319  0 06:27 ?        00:00:00 grep -E fuse|Xvfb
+Fuse PID=3201 Xvfb PID=3195
+runner      3195    3194  0 06:44 ?        00:00:00 Xvfb :99 -screen 0 1280x900x24
+runner      3201    3194  0 06:44 ?        00:00:00 fuse --machine 48 --tape experiments/zx-ux-loader-6000-fuse/output/zx-ux-new-loader-test.tzx --auto-load --no-fastload --no-accelerate-loader --no-traps --no-detect-loader --no-sound --no-confirm-actions --debugger-command breakpoint 0x5ce7 breakpoint 0x0daf if z80:sp > 0xff00 breakpoint 0x6000 breakpoint time 0 if spectrum:frames > 8000 breakpoint 0x0556 commands 1 print 11111111 print z80:pc print z80:sp continue end commands 2 print 22222222 print z80:pc print z80:sp continue end commands 3 print 60006000 print z80:pc print z80:sp print [0x6000] print [0x6001] print [0x6002] print [0x6003] print [0x6004] print [0x6005] print [0x6006] print [0x6007] print [0x6008] print [0x6009] print [0x600a] print [0x600b] print [0x600c] print [0x600d] print [0x600e] print [0x600f] end commands 5 print 55555555 print z80:pc continue end commands 4 print 90909090 print z80:pc print z80:sp print [0x6000] print [0x6001] print [0x6002] print [0x6003] print [0x6004] print [0x6005] print [0x6006] print [0x6007] print [0x6008] print [0x6009] print [0x600a] print [0x600b] print [0x600c] print [0x600d] print [0x600e] print [0x600f] end continue
+runner      3204    3194  0 06:44 ?        00:00:00 grep -E fuse|Xvfb
+monitor_started=2026-10-14T06:44:01Z
+poll=10 utc=2026-10-14T06:44:10Z bytes=731
+manual_tape_play=no_ldbytes_marker
+poll=20 utc=2026-10-14T06:44:20Z bytes=731
+poll=30 utc=2026-10-14T06:44:30Z bytes=731
+poll=40 utc=2026-10-14T06:44:40Z bytes=731
+poll=50 utc=2026-10-14T06:44:50Z bytes=731
+monitor_ended=2026-10-14T06:45:00Z result=LOADER_NEVER_ENTERED
+cleanup_complete=2026-10-14T06:45:00Z
+Result=LOADER_NEVER_ENTERED
+(fuse:3201): dbind-WARNING **: 06:44:01.662: AT-SPI: Error retrieving accessibility bus address: org.freedesktop.DBus.Error.ServiceUnknown: The name org.a11y.Bus was not provided by any .service files
+0x153158e
