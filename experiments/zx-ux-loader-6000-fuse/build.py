@@ -15,7 +15,10 @@ SEGMENTS = 24
 ZERO_T = 1140
 ONE_T = 2280
 PILOT_T = 400
-PILOT_EDGES = 220
+# ZQLoader requires >=200 valid leader edges. 220 left under 3 ms to
+# synchronize with the stream; 800 gives a ~69 ms acquisition margin
+# while keeping each 400-T-state leader well under 0.1 seconds.
+PILOT_EDGES = 800
 SYNC_T = 250
 SYNC2_T = 499
 MINISYNC_T = 501
@@ -152,6 +155,7 @@ assert addr1 == ENTRY
 assert addr2 == addr1 + len1
 payload = p1 + p2
 assert len(payload) == 24670
+assert PILOT_EDGES % 2 == 0 and PILOT_EDGES >= 600
 assert ENTRY + len(payload) - 1 == 0xC05D
 
 base, rem = divmod(len(payload), SEGMENTS)
