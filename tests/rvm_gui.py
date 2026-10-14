@@ -9,7 +9,9 @@ it differs from the one before; typed keys reach the program; Shift+Space
 is BREAK while the program runs (status 255) and closes the window once
 it has ended (with the program's status); the window keeps the program's
 last picture at the end; with --keep the window stays live at the ZX-UX
-shell; a missing system tape is an error before any window opens.
+shell; a missing system tape is an error before any window opens; an
+8.5 KB program (chess) loads with every frame shown, and --frames ends a
+run in the window.
 """
 import json
 import os
@@ -105,6 +107,22 @@ def main():
     check('Shift+Space after the end closes the window',
           [e['event'] for e in ev][-2:] == ['close-key', 'close'])
 
+    print('a big program')
+    # a block longer than a frame's worth of the tape trap's time once made
+    # the machine step over a frame: the window must still get them all
+    big = os.path.join(TMP, 'chess.ssx')
+    if driver.main([os.path.join(ROOT, 'programs', 'c48', 'games', 'chess.c'), '-o', big]):
+        raise SystemExit('rcc failed for chess')
+    status, ev, app = drive(['--gui', big, '--frames', '300'], close_when_ended)
+    fr = frames_of(ev)
+    nums = [e['n'] for e in fr]
+    end = [e for e in ev if e['event'] == 'end']
+    check('an 8.5 KB program loads and runs; every frame reaches the window (%d)' % len(nums),
+          len(nums) > 300 and nums == list(range(nums[0], nums[0] + len(nums)))
+          and len(nums) == app.w.sent)
+    check('--frames ends the run in the window too ("%s")' % (end[0]['text'] if end else ''),
+          bool(end) and 'stopped after 300 frames' in end[0]['text'] and status == 0)
+
     print('a slow host')
     slow = rvmgui.App.paint_rows
 
@@ -148,12 +166,19 @@ def main():
     sent = []
 
     def typer(app, t):
-        if app.r.fg and app.r.fg.started is not None and not sent:
-            sent.append(1)
+        fg = app.r.fg
+        # someone at the keyboard may take their time: the window keeps a
+        # program that waits for keys (headless runs end as 'input' after
+        # 50 frames); type only when it has waited over 100 frames
+        if fg and fg.started is not None and not sent and fg.reading_since is not None \
+                and app.r.session.m.frame - fg.reading_since > 100:
+            sent.append(app.r.why)
             for i, c in enumerate('abq'):
                 app.root.after(200 * (i + 1), lambda c=c: key(app, c))
         close_when_ended(app, t)
     status, ev, app = drive([prog('keys')], typer)
+    check('a program waiting for keys over 100 frames is not ended by the window',
+          sent == [None])
     check('keys typed in the window reach the program (2, then q)', status == 2)
 
     print('BREAK')
@@ -182,8 +207,10 @@ def main():
             app.close()
     status, ev, app = drive([prog('exit7'), '--keep'], keeper)
     text = zxscreen.screen_text(app.r.session.m.screen())
-    check('with --keep the window stays live at the shell after the program', 'kept' in text
-          and frames_of(ev)[-1]['n'] > [e for e in ev if e['event'] == 'end'][0].get('frames_taken', 0))
+    at = [i for i, e in enumerate(ev) if e['event'] == 'end'][0]
+    after = [e for e in ev[at:] if e['event'] == 'frame']
+    check('with --keep the window stays live at the shell after the program '
+          '(%d frames after the end)' % len(after), 'kept' in text and len(after) > 50)
 
     print('errors')
     r = rvm.main(['--gui', '--system', os.path.join(TMP, 'none.tap'), prog('exit7')])

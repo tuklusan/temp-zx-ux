@@ -128,22 +128,26 @@ def list_blocks(blocks):
                        % (name, length, p1, '' if ok else '  (its data block is missing or bad)'))
         elif kind == 3 and b[16:18] == b'RU' and b[14] in (0x41, 0x45, 0x46):
             if b[14] == 0x41:
-                out.append('archive  /dev/cassette/%s:' % name)
+                out.append('archive  /dev/cassette%s:' % ('/' + name if name else ''))
                 i -= data is not None          # an archive header has no data
             elif b[14] == 0x45:
                 out.append('         end of archive')
                 i -= data is not None
             else:
                 got = bytearray()              # the member's data blocks
+                bad = False
                 j = i - (data is not None)
                 while len(got) < length and j < n and blocks[j][:1] == b'\xff':
+                    bad = bad or not _parity_ok(blocks[j])
                     blk = blocks[j][1:-1]
                     if len(blk) == 18 and len(got) + 17 == length:
                         blk = blk[:17]         # (17 bytes travel as 18)
                     got += blk
                     j += 1
                 i = j
-                if len(got) >= 12 and 0 in got[11:]:
+                if bad:
+                    out.append('  ? member %s: a data block has a parity error' % name)
+                elif len(got) >= 12 and 0 in got[11:]:
                     k, size = got[0], struct.unpack_from('<H', got, 3)[0]
                     path = got[11:got.index(0, 11)].decode('latin-1')
                     mark = 'd' if k & 2 else ('z' if k & 1 else '-')

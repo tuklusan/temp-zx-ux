@@ -81,6 +81,23 @@ def z80_coding():
 
 
 @test
+def interrupts():
+    def taken_after(code):
+        m = zxmachine.Machine()
+        m.mem[0x8000:0x8000 + len(code)] = bytes(code)
+        c = m.cpu
+        c.pc, c.im, c.sp = 0x8000, 1, 0xFF00
+        c.iff1 = c.iff2 = False
+        m.set_time(zxmachine.FRAME - 8)        # INT due 8 T-states later
+        m.run(zxmachine.FRAME + 40)
+        return m.mem[0xFEFE] | m.mem[0xFEFF] << 8
+    check('an interrupt is not taken straight after EI (EI NOP: after the NOP)',
+          taken_after([0xFB, 0x00, 0x00]) == 0x8002)
+    check('nor after a second EI (EI EI NOP: after the NOP)',
+          taken_after([0xFB, 0xFB, 0x00, 0x00]) == 0x8003)
+
+
+@test
 def snapshot_continues():
     s = zxux.Session(cache=False)
     s.boot()
@@ -141,6 +158,16 @@ def cache_is_exact():
     s3.boot()
     check('a damaged cache entry is ignored and the system boots from the tape',
           s3.cache_hit is False and state(s3.m) == booted)
+    # s3 wrote a good entry again: cut its snapshot short
+    for f in os.listdir(CACHE):
+        if f.endswith('.z80'):
+            data = open(os.path.join(CACHE, f), 'rb').read()
+            open(os.path.join(CACHE, f), 'wb').write(data[:200])
+    s4 = zxux.Session()
+    s4.boot()
+    check('a truncated cache snapshot is ignored too', s4.cache_hit is False and state(s4.m) == booted)
+    check('the system calls counted are the run\'s, not the boot\'s', s4.syscalls == 0)
+    check('the shell at the prompt is known (programs are typed to it)', s4.reader is not None)
 
 
 def rom_ld(block, flag, n, load=True, pulses=False, verify_with=None):
@@ -348,6 +375,13 @@ def endings():
           r.why == 'tape' and r.fg.started is None and r.status_code() == 1)
 
 
+def big_prog():
+    out = os.path.join(TMP, 'chess.ssx')
+    if driver.main([os.path.join(ROOT, 'programs', 'c48', 'games', 'chess.c'), '-o', out]):
+        raise SystemExit('rcc failed for chess')
+    return out
+
+
 @test
 def frames_continuous():
     s = runner(prog('exit7')).session
@@ -359,6 +393,32 @@ def frames_continuous():
           nums == list(range(nums[0], nums[0] + 300)))
     check('FLASH changes phase every 16 frames',
           all(zxmachine.Frame(n, b'', 0, []).flash == (n >> 4) & 1 for n in range(64)))
+    # a hook that moves the clock past two frame ends (as a long trapped
+    # load once did) must not make a frame number go missing
+    m = zxmachine.Machine()
+    jumped = []
+
+    def jump(mm):
+        if not jumped:
+            jumped.append(1)
+            mm.t += 2 * zxmachine.FRAME + 100
+        return False
+    m.hooks[0x0000] = jump
+    got = [m.run_frame().number for _ in range(5)]
+    check('a clock jump of two frames still gives every frame number (%s)' % got,
+          got == [0, 1, 2, 3, 4])
+    # the real case: an 8.5 KB program loaded through the tape trap
+    s = runner(os.path.join(TMP, 'chess.ssx') if os.path.exists(os.path.join(TMP, 'chess.ssx'))
+               else big_prog()).session
+    nums = []
+    s.frame_hooks.append(lambda f: nums.append(f.number))
+    job = s.jobs[-1]
+    for _ in range(600):
+        s.step()
+        if job.started is not None and s.m.frame > job.started + 20:
+            break
+    check('loading an 8.5 KB program: it starts, every frame numbered one after another',
+          job.started is not None and nums == list(range(nums[0], nums[0] + len(nums))))
 
 
 @test
@@ -378,6 +438,12 @@ def tape_out():
     check('--tape-out writes them as a .tap that reads back', rtap.read_tape(path) == s.m.saved)
 
 
+def short_z80():
+    path = os.path.join(TMP, 'short.z80')
+    open(path, 'wb').write(bytes(40))
+    return path
+
+
 @test
 def command_line():
     r = headless([prog('exit7')])
@@ -394,7 +460,14 @@ def command_line():
                       (['--shell'], 'needs the window'),
                       (['--system', os.path.join(TMP, 'none.tap'), prog('exit7')],
                        'no ZX-UX system tape'),
-                      ([prog('exit7'), 'a b'], 'cannot be typed')):
+                      ([prog('exit7'), 'a b'], 'cannot be typed'),
+                      (['--snapshot', os.path.join(TMP, 'nope.z80'), prog('exit7')],
+                       'No such file'),
+                      (['--snapshot', short_z80(), prog('exit7')], 'truncated or damaged'),
+                      ([prog('exit7'), '--keys', '\\x'], 'bad escape'),
+                      ([prog('exit7'), '--tape', short_z80()], 'not a usable tape'),
+                      ([prog('exit7'), '--png', os.path.join(TMP, 'no', 'dir', 'x.png')],
+                       'No such file')):
         r = headless(args)
         check('rvm refuses %s (%s)' % (' '.join(os.path.basename(a) for a in args), msg),
               r.returncode == 2 and msg in r.stderr, r.stderr.strip())
@@ -409,6 +482,19 @@ def command_line():
     r = headless(['--system', os.path.join(d, 'ZX-UX.tap'), prog('exit7')])
     check('rvm refuses a kernel.json made for another kernel',
           r.returncode == 2 and 'does not describe' in r.stderr, r.stderr.strip())
+    open(os.path.join(d, 'kernel.json'), 'w').write('{"format": "zx-ux-kernel/1", ')
+    r = headless(['--system', os.path.join(d, 'ZX-UX.tap'), prog('exit7')])
+    check('rvm refuses a kernel.json that is not JSON',
+          r.returncode == 2 and 'cannot be read' in r.stderr, r.stderr.strip())
+    k = json.load(open(os.path.join(ROOT, 'build', 'kernel.json')))
+    del k['symbols']['cur']
+    json.dump(k, open(os.path.join(d, 'kernel.json'), 'w'))
+    r = headless(['--system', os.path.join(d, 'ZX-UX.tap'), prog('exit7')])
+    check('rvm refuses a kernel.json without an address it needs',
+          r.returncode == 2 and 'missing or bad entry' in r.stderr, r.stderr.strip())
+    r = headless(['--real-tape', prog('exit7')])
+    check('--real-tape: the ROM loads the program from EAR pulses (status 7)',
+          r.returncode == 7, r.stderr.strip())
     r = subprocess.run([sys.executable, os.path.join(SDK, 'bin', 'rvm'), '--syscall',
                         prog('exit7'), '--text'], capture_output=True, text=True, timeout=300)
     check('rvm --syscall still runs the fast system-call VM', r.returncode == 7

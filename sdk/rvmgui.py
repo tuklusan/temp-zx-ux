@@ -110,7 +110,7 @@ class Worker(threading.Thread):
                 return
             self.sent += 1
             if not ended and r.fg is not None:
-                why = r.check()
+                why = r.check(r.o.frames, interactive=True)
                 if why:
                     ended = True
                     r.why = why
@@ -132,6 +132,8 @@ class Worker(threading.Thread):
             how = 'not found on the cassette'
         elif r.why == 'input':
             how = 'waiting for keys'
+        elif r.why == 'frames':
+            how = 'stopped after %d frames (--frames)' % r.o.frames
         else:
             how = fg.describe()
             if fg.started is None:
@@ -215,7 +217,13 @@ class App:
                 msg = self.q.get_nowait()
             except queue.Empty:
                 break
-            self.handle(msg)
+            try:
+                self.handle(msg)
+            except Exception as e:           # a bug: say so, stop the machine
+                import traceback
+                traceback.print_exc()
+                self.fail('%s: %s' % (type(e).__name__, e))
+                return
             if msg.kind == 'frame':
                 self.next_due = max(self.next_due + period, now - period)
                 break
@@ -223,6 +231,12 @@ class App:
             return
         delay = max(1, int((self.next_due - time.monotonic()) * 1000))
         self.root.after(delay, self.tick)
+
+    def fail(self, text):
+        self.ended = True
+        self.w.stop.set()
+        self.footer.configure(text='rvm error: ' + text, bg='#a00000', fg='#ffff00')
+        self.log(event='error', text=text)
 
     def handle(self, msg):
         if msg.kind == 'frame':

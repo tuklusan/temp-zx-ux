@@ -331,8 +331,8 @@ def pack_under_pressure(s):
         copies.append(name)
         raw.append(name)
         return before - df_free(s)
-    step = copy()                              # what a copy costs
-    while df_free(s) - step > HIGH:
+    step = 1300                                # a copy costs 1293 bytes and
+    while df_free(s) - step > HIGH:            # its arena block's header
         copy()
     while df_free(s) > HIGH:                   # pack one, copy one
         if not raw or len(copies) > 12:
@@ -343,15 +343,21 @@ def pack_under_pressure(s):
     if not LOW <= free <= HIGH:
         raise Fail('could not bring the arena to %d..%d bytes free: %d' % (LOW, HIGH, free))
 
+    # the room has to come from packing closed files during the unpack:
+    # zpress called by the allocator (zidlem 0), not by the idle packer
     def packed():
         return len(re.findall(r'^z', '\n'.join(s.sh('ls -l /tmp')), re.M))
     before = packed()
-    s.expect('wc /usr/doc/zxpack', re.compile(r'38 +213 +1293 /usr/doc/zxpack'),
-             frames=200000)
+    pressed = []
+    zidlem = ksym('zidlem')
+    with watching(s, ksym('zpress'), lambda: pressed.append(s.zx.mem[zidlem])):
+        s.expect('wc /usr/doc/zxpack', re.compile(r'38 +213 +1293 /usr/doc/zxpack'),
+                 frames=200000)
+    if 0 not in pressed or packed() <= before:
+        raise Fail('the unpack (%d bytes free) did not pack another file to make room '
+                   '(zpress calls: %s; packed files %d -> %d)'
+                   % (free, pressed, before, packed()))
     s.expect('ls -l /usr/doc/zxpack', re.compile(r's.rw.. 1 +1293 '))
-    # the room came from packing closed files during the unpack
-    if packed() <= before:
-        raise Fail('the unpack (%d bytes free) packed no other file' % free)
     s.expect('sum /tmp/a', *sum_a, frames=60000)
     for f in copies:
         s.expect('cmp /tmp/a ' + f, absent=('differ', 'EOF'), frames=60000)
@@ -600,28 +606,55 @@ def pair_after_prompt(s):
             s.wait(100)
 
 
-def saves_watched(s, frames):
-    """run frames, stopping at each window save (wsave): the deepest stack
-    (CORETOP - saved SP) per program name"""
-    from skoolkit.simutils import A, PC, T
-    wsave, coretop = ksym('wsave'), ksym('CORETOP')
-    p_sp, stline = ksym('p_sp'), ksym('stline')
-    zx = s.zx
-    regs, m = zx.sim.registers, zx.mem
+class watching:
+    """with watching(s, addr, on_stop): s.zx.run stops before every
+    instruction at addr and calls on_stop() (the kernel at a routine).
+    Not nestable: leaving the block restores the class's run."""
+    def __init__(self, s, addr, on_stop):
+        self.zx, self.addr, self.on_stop = s.zx, addr, on_stop
+
+    def __enter__(self):
+        from skoolkit.simutils import PC, T
+        zx, addr, on_stop = self.zx, self.addr, self.on_stop
+
+        def run(frames):
+            regs = zx.sim.registers
+            for _ in range(frames):
+                end = regs[T] + zxrun.FRAME
+                while regs[T] < end:
+                    if regs[PC] == addr:
+                        on_stop()
+                        zx.sim.trace(regs[PC], -1, 1, end, 1, None, None, None, None, None)
+                        continue
+                    zx.sim.trace(regs[PC], addr, 0, end, 1, None, None, None, None, None)
+                zx.frames += 1
+        zx.run = run
+        return self
+
+    def __exit__(self, *exc):
+        del self.zx.run                 # the class's run again
+
+
+def saves_watched(s, frames, before=None):
+    """before() (e.g. typing a command), then frames, stopping at each
+    window save (wsave): the deepest stack (CORETOP - saved SP) per
+    program name.  The typing is watched too: a fork saves the shell's
+    window as the ENTER is pressed."""
+    from skoolkit.simutils import A
+    coretop, p_sp, stline = ksym('CORETOP'), ksym('p_sp'), ksym('stline')
+    regs, m = s.zx.sim.registers, s.zx.mem
     deep = {}
-    for _ in range(frames):
-        end = regs[T] + zxrun.FRAME
-        while True:
-            zx.sim.trace(regs[PC], wsave, 0, end, 1, None, None, None, None, None)
-            if regs[PC] != wsave or regs[T] >= end:
-                break
-            slot = regs[A]
-            sp = m[p_sp + 2 * slot] | m[p_sp + 2 * slot + 1] << 8
-            name = bytes(m[stline + 8 * slot:stline + 8 * slot + 8]).split(b'\0')[0]
-            name = name.decode('latin-1').strip()
-            deep[name] = max(deep.get(name, 0), coretop - sp)
-            zx.sim.trace(regs[PC], -1, 1, end, 1, None, None, None, None, None)
-        zx.frames += 1
+
+    def saved():
+        slot = regs[A]
+        sp = m[p_sp + 2 * slot] | m[p_sp + 2 * slot + 1] << 8
+        name = bytes(m[stline + 8 * slot:stline + 8 * slot + 8]).split(b'\0')[0]
+        name = name.decode('latin-1').strip()
+        deep[name] = max(deep.get(name, 0), coretop - sp)
+    with watching(s, ksym('wsave'), saved):
+        if before:
+            before()
+        s.zx.run(frames)
     return deep
 
 
@@ -636,8 +669,7 @@ def shell_save_depth(s):
     deep = {}
     for cmd in ('sleep 2 &', 'ls -l /bin/c* > /tmp/l', 'sh /tmp/s a b', 'sleep 1 &',
                 'echo a b c d e f g h i j k l m n o p > /tmp/m', 'cat /tmp/m /tmp/l'):
-        s.zx.type(cmd + '\n')
-        for k, v in saves_watched(s, 400).items():
+        for k, v in saves_watched(s, 400, lambda: s.zx.type(cmd + '\n')).items():
             deep[k] = max(deep.get(k, 0), v)
     reserve = 256                       # STK_SH
     if 'sh' not in deep:
@@ -953,8 +985,8 @@ def border_kept(s):
     """border() sets BORDCR as well as the border, so the key click and
     BEEP (which put the border back from BORDCR) keep the colour; bad
     colours change neither; when the screen goes back to the console the
-    border is black again, and so is BORDCR (or the next key click would
-    bring the colour back)"""
+    border is black again and BORDCR is 07h, as the ROM's BORDER 0 leaves
+    it (or the next key click would bring the colour back)"""
     s.login()
     m = s.zx.mem
     tr = s.zx.tr
@@ -982,13 +1014,13 @@ def border_kept(s):
     want('border(5)', 5, 0x28)                  # light colours: black ink
     s.zx.type('x')                              # the program ends
     s.wait_prompt(3000)
-    want('after the program', 0, 0x00)
+    want('after the program', 0, 0x07)       # as BORDER 0 leaves it
     s.expect('echo still', 'still')             # key clicks at the shell
-    want('typing at the shell', 0, 0x00)
+    want('typing at the shell', 0, 0x07)
 
 
 def mixed_tape(s):
-    """a tar set made on ZX-UX between two programs, the system tape's
+    """tar sets made on ZX-UX (one named, one not) between two programs, the system tape's
     BASIC and CODE headers, and two blocks that are not headers to list:
     a header with a bad parity byte, and a 17-byte data block"""
     import rtap
@@ -998,6 +1030,10 @@ def mixed_tape(s):
     arch = zxrun.decode_mic(s.zx.tr.mic)
     if len(arch) != 6:
         raise Fail('tar wrote %d blocks, want 6' % len(arch))
+    s.sh('tar cf /dev/cassette /tmp/t/one', frames=60000)    # no name
+    anon = zxrun.decode_mic(s.zx.tr.mic)[6:]
+    if len(anon) != 4:
+        raise Fail('tar wrote %d blocks for the unnamed set, want 4' % len(anon))
     prog = ssx_tape('ssxargs')
     data = open(os.path.join(ROOT, 'build', 'ZX-UX.tap'), 'rb').read()
     sysb, p = [], 0
@@ -1009,7 +1045,7 @@ def mixed_tape(s):
     bad[-1] ^= 0x55
     fake = rtap.tap_block(0xFF, bytes([3]) + b'notahdr   ' + bytes(4) + b'SS')
     zz9 = rtap.records(open(os.path.join(ROOT, 'build', 'ssx', 'ssxargs.ssx'), 'rb').read(), 'zz9')
-    return prog + arch + sysb[:4] + [bytes(bad), fake] + zz9
+    return prog + arch + sysb[:4] + [bytes(bad), fake] + anon + zz9
 
 
 def listing(s, cmd):
@@ -1047,7 +1083,7 @@ def tap_t_whole_tape(s):
     list_until(s, 'tap t', '/dev/cassette/zz9')
     # (tap lists in the long form, as v1's did)
     want = ['/dev/cassette/ssxargs', '/dev/cassette/demo:', 'd    30 /tmp/t',
-            '-     4 /tmp/t/one', '/dev/cassette/zz9']
+            '-     4 /tmp/t/one', '/dev/cassette:', '-     4 /tmp/t/one', '/dev/cassette/zz9']
     got = listing(s, 'tap t')
     if got != want:
         raise Fail('tap t listed %s, want %s' % (got, want))
@@ -1077,7 +1113,7 @@ def tap_t_whole_tape(s):
     s.zx.tr.edges = zxrun.tape_pulses(tape, s.zx.sim.registers[25] + 3500000)
     list_until(s, 'tar tf /dev/cassette', '/dev/cassette/zz9')
     want = ['/dev/cassette/ssxargs', '/dev/cassette/demo:', '/tmp/t', '/tmp/t/one',
-            '/dev/cassette/zz9']
+            '/dev/cassette:', '/tmp/t/one', '/dev/cassette/zz9']
     got = listing(s, 'tar tf /dev/cassette')
     if got != want:
         raise Fail('tar tf /dev/cassette listed %s, want %s' % (got, want))

@@ -296,10 +296,15 @@ screen sharing and multitasking.
 - **Ports:** IN FEh reads the eight keyboard half-rows selected by the address's high byte and
   the cassette EAR bit; OUT FEh sets the border, MIC and the beeper. Every border and beeper
   change is logged with its T-state.
-- **Cassette:** the ROM's LD-BYTES and SA-BYTES are trapped (blocks load at once, saves are
-  captured), with the ROM's results: carry, IX, DE, memory, the border from BORDCR and
-  interrupts on, including failures (a wrong flag, a short or long block, a parity error, a VERIFY
-  difference). `--real-tape` plays the blocks as EAR pulses and lets the ROM load them.
+- **Cassette:** the ROM's LD-BYTES and SA-BYTES are trapped (a block loads or saves in a fixed
+  1 ms, saves are captured). What a caller can rely on is the ROM's: the carry, IX, DE, memory,
+  the border from BORDCR and interrupts on, including failures (a wrong flag, a short or long
+  block, a parity error, a VERIFY difference). A, the other flags, BC, HL and the alternate set
+  are not reproduced; ZX-UX reads only the carry. With BREAK held, or no block left, the real ROM
+  routine runs. `--real-tape` plays the blocks as EAR pulses, once the command has been typed,
+  and lets the ROM load them.
+- **Frames:** `run_frame` returns every frame number in turn, even if something moved the clock
+  past a frame's end.
 - **Snapshots:** `.z80` versions 1–3 in, version 3 out, with the T-state within the frame.
 - **Proof:** `tests/rvm_machine.py` runs every scripted corpus session (as `tests/ssxrun.py`, with
   real tape pulses) on this machine and on the SkoolKit simulator side by side. Registers, the
@@ -312,7 +317,8 @@ screen sharing and multitasking.
   `~/.cache/zx-ux-rvm`). A run from the cache is identical to one that booted.
 - **Programs:** a program's SST1 records go on the cassette and `/dev/cassette/NAME args` (with
   `&` for `--bg`) is typed at the shell.
-- **What rvm watches:** system calls at 6003h (fork's result gives the pid; `/etc/ldx`'s sys
+- **What rvm watches:** system calls at 6003h (the result of a fork by the shell the command was
+  typed to gives the pid; `/etc/ldx`'s sys
   ssxload the loading; the program's first own call the start; sys screen 0 or exit its last
   picture; the parent's wait the exit status, FFFFh for BREAK), and four kernel variables
   (`cur`, `p_pid`, `p_stat`, `scrown`), only read. `tools/build.py` writes their addresses to
@@ -344,10 +350,11 @@ run's sound.
 
 **Headless:** `--png`, `--scr`, `--text` (the program's last picture; `--final` for the screen as
 ZX-UX left it), `--wav`, `--tape-out` (blocks saved to cassette), `--keys` (typed once the program
-runs; `{BREAK}`, `{WAIT n}` ...), `--frames N`. A run ends when the program does, when it has
+runs; `{BREAK}`, `{WAIT n}` ...), `--frames N` (also in the window). A run ends when the program does, when it has
 waited 50 frames for keys after the last one (`input`), at the frame limit, or when the cassette
 has run out before it loaded (`tape`). Exit status: the program's (255 after BREAK), 0 for `input`
-and `frames`, 1 if it did not start, 2 for an error.
+and `frames`, 1 if it did not start, 2 for an error (a bad file, option, snapshot or
+`kernel.json`; an output that cannot be written).
 
 **Multitasking.** `--bg P.ssx[:A,B]` starts programs in the background first, so several share
 the machine as on ZX-UX (`hanoi` and `queens8` share the screen, and a program that does not

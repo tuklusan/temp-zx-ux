@@ -104,6 +104,13 @@ def main():
           lines[0].startswith('?') and 'parity' in lines[0] and 'program' not in ' '.join(lines))
     lines = rtap.list_blocks([rtap.tap_block(0xFF, bytes([3]) + b'notahdr   ' + bytes(4) + b'SS')])
     check('a 17-byte data block is a data block', lines == ['         data block, 17 bytes'])
+    lines = rtap.list_blocks([tar_header('A', '', 0)] + member('/x', b'xy') + [tar_header('E', '', 0)])
+    check('an archive saved without a name is /dev/cassette:', lines[0] == 'archive  /dev/cassette:')
+    m = member('/x', b'0123456789' * 5)
+    m[1] = m[1][:-1] + bytes([m[1][-1] ^ 1])
+    lines = rtap.list_blocks(m)
+    check('a member whose data block has a parity error is flagged',
+          lines == ['  ? member x: a data block has a parity error'])
     lines = rtap.list_blocks([tar_header('F', 'gone', 40)])
     check('a member without its data is flagged', lines == ['  ? member gone: its data is missing or short'])
     lines = rtap.list_blocks([header(7, 'odd', 0, 0, b'\0\0'), b'\x00'])

@@ -600,8 +600,12 @@ tpprg:  ld hl,(TP_HD+15)
         jp crlf
 
 ; tpcas: /dev/cassette/NAME, the name in the header in TP_HD
+;   (/dev/cassette alone for an archive saved without a name)
 tpcas:  ld hl,s_cas
         call puts
+        ld a,(TP_HD+1)
+        cp '!'
+        ret c
         ld a,'/'
         call putc
         ld hl,TP_HD+1

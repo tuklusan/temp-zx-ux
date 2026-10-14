@@ -49,11 +49,16 @@ class RvmError(Exception):
 # ------------------------------------------------------------------ system
 def read_tape(path):
     """Blocks (flag + data + parity) of a .tap or standard-speed .tzx."""
-    data = open(path, 'rb').read()
-    if data[:8] == b'ZXTape!\x1a':
-        import rtap
-        return [b for _, b in rtap.tzx_blocks(data)[1]]
-    return zxmachine.tap_blocks(data)
+    try:
+        data = open(path, 'rb').read()
+        if data[:8] == b'ZXTape!\x1a':
+            import rtap
+            return [b for _, b in rtap.tzx_blocks(data)[1]]
+        return zxmachine.tap_blocks(data)
+    except OSError as e:
+        raise RvmError('%s: %s' % (path, e.strerror))
+    except (ValueError, IndexError, SystemExit) as e:
+        raise RvmError('%s: not a usable tape (%s)' % (path, e))
 
 
 class SystemImage:
@@ -68,17 +73,24 @@ class SystemImage:
         kj = kernel_json or os.path.join(os.path.dirname(self.tape), 'kernel.json')
         if not os.path.isfile(kj):
             raise RvmError('no kernel.json next to %s (tools/build.py writes it)' % self.tape)
-        info = json.load(open(kj))
-        if info.get('format') != 'zx-ux-kernel/1':
-            raise RvmError('%s: unknown format %r' % (kj, info.get('format')))
+        try:
+            info = json.load(open(kj))
+        except (OSError, ValueError) as e:
+            raise RvmError('%s: cannot be read (%s)' % (kj, e))
+        if not isinstance(info, dict) or info.get('format') != 'zx-ux-kernel/1':
+            raise RvmError('%s: not a zx-ux-kernel/1 file' % kj)
         kern = self._kernel_block()
         got = hashlib.sha256(kern).hexdigest()
-        if got != info['kernel_sha256']:
+        if got != info.get('kernel_sha256'):
             raise RvmError('%s does not describe the kernel on %s (tape kernel sha256 %s); '
                            'rebuild with tools/build.py' % (kj, self.tape, got[:16]))
+        try:
+            self.sym = {k: int(info['symbols'][k]) for k in
+                        ('NPROC', 'SFREE', 'p_stat', 'p_pid', 'cur', 'scrown')}
+            self.syscall = int(info['syscall'])
+        except (KeyError, TypeError, ValueError) as e:
+            raise RvmError('%s: missing or bad entry %s' % (kj, e))
         self.info = info
-        self.sym = info['symbols']
-        self.syscall = info['syscall']
         h = hashlib.sha256()
         for b in self.blocks:
             h.update(struct.pack('<H', len(b)) + b)
@@ -126,7 +138,10 @@ def parse_keys(text):
     """--keys text -> actions: ('keys', combo) and ('wait', frames).
     Escapes: \\n ENTER, \\b DELETE; {BREAK} {EDIT} {DELETE} {UP} {DOWN}
     {LEFT} {RIGHT} {ENTER} {SPACE}, {WAIT n} (n frames), {{ for {."""
-    text = text.encode('latin-1', 'backslashreplace').decode('unicode_escape')
+    try:
+        text = text.encode('latin-1', 'backslashreplace').decode('unicode_escape')
+    except UnicodeDecodeError as e:
+        raise RvmError('bad escape in keys: %s' % e.reason)
     out = []
     i = 0
     while i < len(text):
@@ -249,6 +264,7 @@ class Job:
         self.background = background
         self.pid = None
         self.loading = None        # frame /etc/ldx called sys ssxload
+        self.parent = None         # pid of the shell it was typed to
         self.started = None        # frame of the program's own first system
                                    # call (the load is done, it runs)
         self.ended = None          # frame its parent's wait returned
@@ -301,6 +317,8 @@ class Session:
         self._unforked = []
         self._watch = {}           # return address -> [entries]
         self.syscalls = 0
+        self.reader = None         # pid last seen reading the terminal (the
+                                   # shell at its prompt)
         self.frame_hooks = []
         self.cache_hit = None
 
@@ -338,6 +356,8 @@ class Session:
         m = self.m
         m.press(self.kb.tick(m.frame))
         f = m.run_frame()
+        if f is None:
+            raise RvmError('the machine was stopped inside a frame')
         for job in self.jobs:
             if job.pid is not None and job.started is not None and job.ended is None:
                 if self.owns_screen(job.pid):
@@ -364,7 +384,7 @@ class Session:
         sp = cpu.sp
         ret = mem[sp] | mem[(sp + 1) & 0xFFFF] << 8
         pid = self.current_pid()
-        if a == SYS_FORK and self._unforked:
+        if a == SYS_FORK and self._unforked and self._unforked[0].parent in (None, pid):
             self._expect(ret, sp, 'fork', pid)
         elif a == SYS_WAIT:
             self._expect(ret, sp, 'wait', pid)
@@ -386,7 +406,9 @@ class Session:
                 job.exit_picture = (m.screen(), m.border)
         elif a == SYS_READ and (cpu.h << 8 | cpu.l) == 0:
             job = self._job(pid)
-            if job is not None and job.started is not None:
+            if job is None:
+                self.reader = pid
+            elif job.started is not None:
                 job.reading_since = m.frame
                 self._expect(ret, sp, 'read', pid)
         return False
@@ -416,7 +438,7 @@ class Session:
                 if not failed and hl == 0:
                     continue                 # the child: its parent's return counts
                 del lst[i]
-                if not failed and self._unforked:
+                if not failed and self._unforked and self._unforked[0].parent in (None, who):
                     job = self._unforked.pop(0)
                     job.pid = hl
                     self.say('%s forked as pid %d' % (job.name, hl))
@@ -443,9 +465,13 @@ class Session:
     def boot(self):
         """Start at the shell prompt: from the cache, a snapshot, or the tape."""
         if self.snapshot:
-            self.m.load_z80(open(self.snapshot, 'rb').read())
+            try:
+                self.m.load_z80(open(self.snapshot, 'rb').read())
+            except (OSError, ValueError) as e:
+                raise RvmError('%s: %s' % (self.snapshot, getattr(e, 'strerror', None) or e))
             self.cache_hit = False
             self._login()
+            self.syscalls = 0
             return
         key = self._cache_key()
         path = os.path.join(cache_dir(), key + '.z80')
@@ -455,11 +481,13 @@ class Session:
                 self.m.load_z80(open(path, 'rb').read())
                 if meta.get('key') != key or self.m.t != meta['t'] % FRAME:
                     raise ValueError('cache entry does not match')
-                self.m.t = meta['t']
+                self.m.set_time(meta['t'])
+                self.reader = meta.get('reader')
                 self.cache_hit = True
+                self.syscalls = 0
                 self.say('started from the cache (%s)' % path)
                 return
-            except (ValueError, KeyError, OSError) as e:
+            except (ValueError, KeyError, TypeError, OSError) as e:
                 self.say('cache entry ignored: %s' % e)
                 self.m = self._fresh_machine()
         self.cache_hit = False
@@ -467,6 +495,7 @@ class Session:
         self._login()
         if self.use_cache:
             self._save_cache(path, key)
+        self.syscalls = 0
 
     def _fresh_machine(self):
         m = zxmachine.Machine()
@@ -487,7 +516,7 @@ class Session:
             os.makedirs(os.path.dirname(path), exist_ok=True)
             data = self.m.save_z80()
             for name, blob in ((path, data),
-                               (path + '.json', json.dumps({'key': key, 't': self.m.t,
+                               (path + '.json', json.dumps({'key': key, 't': self.m.t, 'reader': self.reader,
                                                             'system': self.system.tape}).encode())):
                 fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path))
                 with os.fdopen(fd, 'wb') as f:
@@ -543,6 +572,7 @@ class Session:
                 raise RvmError('argument %r cannot be typed to the shell' % a)
         blocks = rtap.records(ssx, name)
         job = Job(name, args, background)
+        job.parent = self.reader
         self.m.cassette.extend(blocks)
         self.m.cassette.extend(extra_blocks)
         self.jobs.append(job)

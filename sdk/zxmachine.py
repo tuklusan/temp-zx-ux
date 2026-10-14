@@ -22,10 +22,15 @@ can be drawn line by line and the sound is exact to the T-state.
 
 The cassette has two modes:
   trap (default)  the ROM's LD-BYTES (0556h) and SA-BYTES (04C2h) are
-                  run in Python: blocks load instantly and saves are
-                  captured; the results, registers and flags are the
-                  ROM's.  A request the tape cannot satisfy (no block
-                  left, BREAK held) is left to the real ROM routine.
+                  run in Python: a block loads or saves in a fixed 1 ms
+                  and saves are captured.  What the caller can rely on
+                  is the ROM's: the carry (loaded or not), IX and DE
+                  past the bytes moved, the memory, the border from
+                  BORDCR and interrupts on.  A, F's other bits, BC, HL
+                  and the alternate set are not reproduced (ZX-UX reads
+                  only the carry).  A request the tape cannot satisfy
+                  (no block left) or made with BREAK held is left to the
+                  real ROM routine.
   pulses          the tape is played as ROM-timing EAR edges and the ROM
                   loads it bit by bit, as on a real machine.
 """
@@ -155,6 +160,8 @@ class Machine:
         self.cpu = FastZ80(self.mem.__getitem__, self.mem.write,
                            read_port=self._in, write_port=self._out)
         self.t = 0                    # T-states since power on (absolute)
+        self.fno = None               # next frame run_frame returns (None:
+                                      # the one the clock is in)
         self.tnow = 0                 # T-state of the instruction now running
         self.pressed = frozenset()
         self._rows = [0x1F] * 8
@@ -175,7 +182,14 @@ class Machine:
         self.reset()
 
     # ---------------------------------------------------------------- state
+    def set_time(self, t):
+        """Set the clock (absolute T-states), e.g. when a snapshot is
+        restored; the next frame is the one t lies in."""
+        self.t = self.tnow = t
+        self.fno = None
+
     def reset(self):
+        self.set_time(0)
         c = self.cpu
         c.pc = 0
         c.iff1 = c.iff2 = False
@@ -279,9 +293,11 @@ class Machine:
                     cpu.r = (cpu.r & 0x80) | ((cpu.r + 1) & 0x7F)
                     if cpu._ei_delay:
                         # the instruction after EI: no interrupt before it
-                        # ends (as Z80CPU.step)
+                        # ends; another EI (FBh) holds it off again, as on
+                        # the Z80 (Z80CPU.step would let it in after two)
                         t += page[op]()
-                        cpu._ei_delay -= 1
+                        if op != 0xFB:
+                            cpu._ei_delay -= 1
                     else:
                         t += page[op]()
                 # INT is held for the first INT_LEN T-states of a frame; it
@@ -301,12 +317,19 @@ class Machine:
             self.t = t
 
     def run_frame(self):
-        """Run to the end of the current frame; return its Frame."""
-        start = self.frame
-        self.run((start + 1) * FRAME)
-        if self.frame != start + 1:           # stopped by a hook
-            return None
-        return self.end_frame(start)
+        """Run to the end of the next frame and return it.  Frames come
+        out numbered one after another: if the clock has already passed
+        the end of a frame (a hook moved it), that frame is returned at
+        once, so a frame number is never skipped.  None only if a hook
+        asked the run to stop before the frame ended."""
+        n = self.frame if self.fno is None else self.fno
+        end = (n + 1) * FRAME
+        if self.t < end:
+            self.run(end)
+            if self.t < end:                  # stop_requested
+                return None
+        self.fno = n + 1
+        return self.end_frame(n)
 
     def end_frame(self, number):
         f = Frame(number, bytes(self.mem[0x4000:0x5B00]), self._fborder0, self._fborders)
@@ -365,13 +388,13 @@ class Machine:
                     ok = x == 0
             ix = (ix + done) & 0xFFFF
             n -= done
-        self._tape_return(ok, ix, n, 3500 + 16 * len(block))
+        self._tape_return(ok, ix, n)
         return True
 
     def _sa_bytes(self):
         """ROM SA-BYTES: A = flag, DE = length, IX = address."""
-        if not self.trap_tape:
-            return False
+        if not self.trap_tape or 'SPACE' in self.pressed:
+            return False                      # BREAK: the ROM's own error
         cpu = self.cpu
         n = cpu.d << 8 | cpu.e
         ix = cpu.ix
@@ -380,10 +403,14 @@ class Machine:
         for c in body:
             x ^= c
         self.saved.append(body + bytes([x]))
-        self._tape_return(True, (ix + n) & 0xFFFF, 0, 3500 + 16 * len(body))
+        self._tape_return(True, (ix + n) & 0xFFFF, 0)
         return True
 
-    def _tape_return(self, ok, ix, de, cost):
+    TRAP_COST = 3500                  # T-states a trapped block takes (1 ms):
+                                      # less than a frame, so run_frame never
+                                      # has to step over two frame ends
+
+    def _tape_return(self, ok, ix, de):
         cpu = self.cpu
         cpu.ix = ix
         cpu.d, cpu.e = (de >> 8) & 0xFF, de & 0xFF
@@ -396,7 +423,7 @@ class Machine:
         sp = cpu.sp
         cpu.pc = self.mem[sp] | self.mem[(sp + 1) & 0xFFFF] << 8
         cpu.sp = (sp + 2) & 0xFFFF
-        self.t += cost
+        self.t += self.TRAP_COST
 
     def play_pulses(self, blocks):
         """Pulses mode: play blocks from now as EAR edges."""
@@ -406,6 +433,12 @@ class Machine:
     # ---------------------------------------------------------- snapshots
     def load_z80(self, data):
         """Load a 48K .z80 snapshot (versions 1-3)."""
+        try:
+            self._load_z80(data)
+        except (IndexError, struct.error):
+            raise ValueError('truncated or damaged .z80 snapshot')
+
+    def _load_z80(self, data):
         h = data[:30]
         if len(h) < 30:
             raise ValueError('not a .z80 snapshot')
@@ -475,8 +508,7 @@ class Machine:
             if got != {4, 5, 8}:
                 raise ValueError('.z80 snapshot lacks 48K pages')
         c.pc = pc
-        self.t = tframe
-        self.tnow = tframe
+        self.set_time(tframe)
         self.border = self._fborder0 = border
         self._fborders = []
         self.ear = 0

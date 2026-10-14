@@ -188,6 +188,7 @@ class Runner:
         self.beeper = None
         self.pcm = bytearray() if o.wav else None
         self.empty_since = None
+        self.pending_pulses = None    # --real-tape: played once the command is typed
 
     def start(self):
         s = self.session
@@ -209,7 +210,8 @@ class Runner:
                 import rtap
                 job = s.launch(ssx, name, args, bg)
                 m.cassette = []
-                m.play_pulses(rtap.records(ssx, name) + list(extra))
+                m.trap_tape = False
+                self.pending_pulses = rtap.records(ssx, name) + list(extra)
             else:
                 job = s.launch(ssx, name, args, bg, extra)
             if not bg:
@@ -220,6 +222,9 @@ class Runner:
         """Run one frame; return (Frame, pcm bytes, sounding)."""
         s = self.session
         f = s.step()
+        if self.pending_pulses is not None and not s.kb.busy():
+            s.m.play_pulses(self.pending_pulses)    # PLAY: the command is typed
+            self.pending_pulses = None
         fg = self.fg
         if fg is not None and not self.keys_sent and fg.started is not None:
             acts = []
@@ -236,8 +241,11 @@ class Runner:
             self.pcm += pcm
         return f, pcm, bool(edges)
 
-    def check(self):
-        """None while the run goes on, else why it stopped."""
+    def check(self, limit=None, interactive=False):
+        """None while the run goes on, else why it stopped; limit: frames
+        the program may run from its start.  interactive: someone is at
+        the keyboard (the window), so a program waiting for keys is not
+        the end of the run."""
         s = self.session
         fg = self.fg
         m = s.m
@@ -246,15 +254,23 @@ class Runner:
         if fg.ended is not None:
             return 'killed' if fg.status == 0xFFFF else 'exit'
         if fg.started is None:
-            if fg.loading is None and not m.cassette and m.tape_requests:
+            if self.o.real_tape:
+                played = (self.pending_pulses is None and m.pulses
+                          and m.t > m.pulses[-1])
+            else:
+                played = not m.cassette and m.tape_requests
+            if fg.loading is None and played:
                 if self.empty_since is None:
                     self.empty_since = m.frame
                 elif m.frame - self.empty_since >= TAPE_WAIT:
                     return 'tape'
             return None
-        if (self.keys_sent and fg.reading_since is not None and not s.kb.busy()
+        if (not interactive and self.keys_sent and fg.reading_since is not None
+                and not s.kb.busy()
                 and m.frame - fg.reading_since >= zxux.INPUT_IDLE):
             return 'input'
+        if limit is not None and m.frame - fg.started >= limit:
+            return 'frames'
         return None
 
     def status_code(self):
@@ -302,19 +318,16 @@ class Runner:
 
 
 def run_headless(o):
+    if o.shell:
+        raise RvmError('--shell needs the window (or give a program)')
     r = Runner(o, log=(lambda m: print('rvm: ' + m, file=sys.stderr)) if o.verbose else None)
     r.start()
     limit = o.frames if o.frames is not None else 6000
-    if r.fg is None:
-        raise RvmError('--shell needs the window (or give a program)')
     while True:
         r.frame()
-        why = r.check()
+        why = r.check(limit)
         if why:
             r.why = why
-            break
-        if r.fg.started is not None and r.session.m.frame - r.fg.started >= limit:
-            r.why = 'frames'
             break
         if r.fg.started is None and r.session.m.frame - r.start_frame >= limit + 3000:
             r.why = 'not started'
@@ -356,6 +369,9 @@ def main(argv):
         return run_headless(o)
     except RvmError as e:
         print('rvm: %s' % e, file=sys.stderr)
+        return 2
+    except OSError as e:                  # an output file that cannot be written
+        print('rvm: %s: %s' % (e.filename or '', e.strerror or e), file=sys.stderr)
         return 2
     except KeyboardInterrupt:
         return 130

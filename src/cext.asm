@@ -65,7 +65,8 @@ scrfree:
         ld (scrown),a
         ld (cdrawn),a
         out (0FEh),a
-        ld (SV_BORDCR),a        ; ... and stays black (key click, beep)
+        ld a,7                  ; ... and stays black (key click, beep):
+        ld (SV_BORDCR),a        ; BORDCR as the ROM's BORDER 0 leaves it
         ld a,TT_ECHO
         ld (ttymode),a
         ld hl,5800h
