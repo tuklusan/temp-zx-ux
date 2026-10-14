@@ -39,6 +39,20 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y             fuse-emulator-gtk=1.6.0+dfsg1-2build3             libspectrum8=1.5.0-4build2             xvfb=2:21.1.12-1ubuntu1.8             x11-apps xdotool imagemagick
+          # Ubuntu chooses OpenSE BASIC unless the authentic ROM is supplied.
+          # Pin the exact official Noble 'spectrum-roms_20081224-5_all.deb'
+          # (SHA-256 from packages.ubuntu.com/noble/all/spectrum-roms/download).
+          rom_deb=/tmp/spectrum-roms_20081224-5_all.deb
+          curl --fail --location --retry 3 --max-time 90 \
+            https://archive.ubuntu.com/ubuntu/pool/multiverse/s/spectrum-roms/spectrum-roms_20081224-5_all.deb \
+            --output "$rom_deb"
+          echo "ef0aeda79444889debcff70b0260854203378ebe7b567d6d1b6d2577abe6d591  $rom_deb" | sha256sum --check
+          mkdir -p /tmp/zx-spectrum-roms
+          dpkg-deb --extract "$rom_deb" /tmp/zx-spectrum-roms
+          rom=/tmp/zx-spectrum-roms/usr/share/spectrum-roms/48.rom
+          test "$(stat --printf=%s "$rom")" -eq 16384
+          echo "Official Sinclair 48K ROM:"
+          sha256sum "$rom"
           fuse --version
 
       - name: Build corrected TZX
@@ -122,7 +136,7 @@ jobs:
           DBG
 
           cmd="$(cat "$d/debugger.txt")"
-          stdbuf -o0 -e0 fuse --machine 48 \
+          stdbuf -o0 -e0 fuse --machine 48 --rom-48 /tmp/zx-spectrum-roms/usr/share/spectrum-roms/48.rom \
             --tape "$d/zx-ux-new-loader-test.tzx" \
             --no-auto-load --no-fastload --no-accelerate-loader --no-traps --no-detect-loader --no-sound \
             --no-confirm-actions --debugger-command "$cmd" \
