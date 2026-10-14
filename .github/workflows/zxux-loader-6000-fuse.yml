@@ -252,8 +252,16 @@ jobs:
             sleep 1
           done
 
-          # Allow the 0x6000 payload to render its tty/login before final capture.
-          if [ "$result" = "ENTRY_6000" ]; then sleep 5; fi
+          # Keep emulating after the actual 0x6000 transfer: the kernel
+          # needs time to initialize tty/getty before displaying "login:".
+          if [ "$result" = "ENTRY_6000" ]; then
+            sleep 5
+            timeout -k 2s 5s xwd -root -silent -out "$d/kernel-early.xwd" || true
+            if test -s "$d/kernel-early.xwd"; then
+              timeout -k 2s 5s convert "$d/kernel-early.xwd" "$d/kernel-early.png" || true
+            fi
+            sleep 25
+          fi
           # Persist result before optional screenshots or process cleanup.
           echo "$result" | tee "$d/fuse-result.txt"
           echo "monitor_ended=$(date -u +%FT%TZ) result=$result" >> "$d/diagnostics.txt"
@@ -290,6 +298,7 @@ jobs:
           sha256sum "$d/zx-ux-new-loader-test.tzx" "$d/zx-ux-new-loader-test.tzx.zip" "$d/fuse.log" > "$d/SHA256SUMS"
           if test -s "$d/fuse-final.png"; then sha256sum "$d/fuse-final.png" >> "$d/SHA256SUMS"; fi
           if test -s "$d/progress-mid.png"; then sha256sum "$d/progress-mid.png" >> "$d/SHA256SUMS"; fi
+          if test -s "$d/kernel-early.png"; then sha256sum "$d/kernel-early.png" >> "$d/SHA256SUMS"; fi
 
       - name: Persist diagnostic output
         if: always()
