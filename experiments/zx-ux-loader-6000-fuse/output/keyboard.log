@@ -1,1 +1,12 @@
-{"display": ":99", "result": "SENT", "spectrum_keys": ["J", "Ctrl+P", "Ctrl+P", "Enter", "F8 (Tape Play)"], "window": "0x400008"}
+Traceback (most recent call last):
+  File "/home/runner/work/temp-zx-ux/temp-zx-ux/experiments/zx-ux-loader-6000-fuse/input_xtest.py", line 145, in <module>
+    main()
+  File "/home/runner/work/temp-zx-ux/temp-zx-ux/experiments/zx-ux-loader-6000-fuse/input_xtest.py", line 135, in main
+    result = send_rom_load(args.display, args.output_dir)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/temp-zx-ux/temp-zx-ux/experiments/zx-ux-loader-6000-fuse/input_xtest.py", line 49, in send_rom_load
+    win = visible_fuse_window(display)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/temp-zx-ux/temp-zx-ux/experiments/zx-ux-loader-6000-fuse/input_xtest.py", line 44, in visible_fuse_window
+    raise RuntimeError(f"A viewable Fuse SDL window did not appear in 60 s: {last_error}")
+RuntimeError: A viewable Fuse SDL window did not appear in 60 s: No viewable Fuse window

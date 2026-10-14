@@ -1,12 +1,5 @@
 {
-  "result": "SENT",
-  "window": "0x400008",
-  "spectrum_keys": [
-    "J",
-    "Ctrl+P",
-    "Ctrl+P",
-    "Enter",
-    "F8 (Tape Play)"
-  ],
+  "result": "ERROR",
+  "error": "A viewable Fuse SDL window did not appear in 60 s: No viewable Fuse window",
   "display": ":99"
 }
