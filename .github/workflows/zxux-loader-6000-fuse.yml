@@ -37,7 +37,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y             fuse-emulator-gtk=1.6.0+dfsg1-2build3             libspectrum8=1.5.0-4build2             xvfb=2:21.1.12-1ubuntu1.8             x11-apps imagemagick
+          sudo apt-get install -y             fuse-emulator-gtk=1.6.0+dfsg1-2build3             libspectrum8=1.5.0-4build2             xvfb=2:21.1.12-1ubuntu1.8             x11-apps xdotool imagemagick
           fuse --version
 
       - name: Build corrected TZX
@@ -126,8 +126,31 @@ jobs:
           DBG
 
           cmd="$(cat "$d/debugger.txt")"
-          stdbuf -oL -eL fuse --machine 48             --tape "$d/zx-ux-new-loader-test.tzx"             --auto-load --no-fastload --no-accelerate-loader             --no-confirm-actions --debugger-command "$cmd"             >"$d/fuse.log" 2>&1 &
+          stdbuf -oL -eL fuse --machine 48             --tape "$d/zx-ux-new-loader-test.tzx"             --auto-load --no-fastload --no-accelerate-loader --no-detect-loader             --no-confirm-actions --debugger-command "$cmd"             >"$d/fuse.log" 2>&1 &
           fuse_pid=$!
+
+          # The ROM trap consumes the two standard loader blocks.  ZQLoader
+          # then calls ROM CLS at 0x0DAF.  When that breakpoint marker appears,
+          # explicitly start the virtual tape (F8) at the first compact 0x19
+          # turbo block.  With detect-loader disabled Fuse cannot stop it again.
+          (
+            for j in $(seq 1 40); do
+              if grep -q "22222222" "$d/fuse.log"; then
+                sleep 0.2
+                win="$(xdotool search --name 'Fuse' 2>/dev/null | head -n1 || true)"
+                if [ -n "$win" ]; then
+                  xdotool windowactivate --sync "$win" key F8 || true
+                  echo "manual_tape_play=sent window=$win" >>"$d/diagnostics.txt"
+                else
+                  echo "manual_tape_play=no_window" >>"$d/diagnostics.txt"
+                fi
+                exit 0
+              fi
+              sleep 0.25
+            done
+            echo "manual_tape_play=no_cls_marker" >>"$d/diagnostics.txt"
+          ) &
+          tape_starter_pid=$!
 
           echo "Fuse PID=$fuse_pid Xvfb PID=$xvfb_pid" > "$d/diagnostics.txt"
           ps -ef | grep -E 'fuse|Xvfb' >> "$d/diagnostics.txt" || true
@@ -164,6 +187,7 @@ jobs:
           xwd -root -silent -out "$d/fuse-final.xwd" || true
           convert "$d/fuse-final.xwd" "$d/fuse-final.png" || true
 
+          kill "$tape_starter_pid" 2>/dev/null || true
           kill "$fuse_pid" 2>/dev/null || true
           kill "$xvfb_pid" 2>/dev/null || true
 
