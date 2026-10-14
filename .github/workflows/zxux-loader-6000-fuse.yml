@@ -106,7 +106,7 @@ jobs:
           cat >"$d/debugger.txt" <<'DBG'
           breakpoint 0x6000
           breakpoint time 0 if spectrum:frames > 10500
-          breakpoint 0x03b5 if z80:de == 250
+          breakpoint 0x03b5
           commands 1
           print 60006000
           print z80:pc
@@ -172,7 +172,7 @@ jobs:
             echo "launch_attempt=$attempt at $(date -u +%FT%TZ)" >> "$d/fuse-launch.log"
             SDL_VIDEODRIVER=x11 SDL_AUDIODRIVER=dummy stdbuf -o0 -e0 fuse-sdl --machine 48 --rom-48 /tmp/zx-spectrum-roms/usr/share/spectrum-roms/48.rom \
               --tape "$d/zx-ux-new-loader-test.tzx" \
-              --no-auto-load --no-traps --no-fastload --no-accelerate-loader \
+              --no-auto-load --no-traps --no-fastload --no-accelerate-loader --no-sound \
               --no-confirm-actions --debugger-command "$cmd" >"$d/fuse.log" 2>&1 &
             fuse_pid=$!
             for j in $(seq 1 80); do
@@ -224,6 +224,8 @@ jobs:
             fi
           ) &
           progress_capture_pid=$!
+          # Headless Fuse keeps SDL audio disabled to avoid mixer crashes;
+          # ROM BEEPER still executes CPU instructions with DE/HL visible.
           # Snapshot physical row 23 during the ROM beep and silent dwell.
           # Trigger from the debugger's unique BEEPER marker.
           (
