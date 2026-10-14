@@ -1,20 +1,26 @@
-Fuse PID=3625 Xvfb PID=3592 WM PID=3596
-runner      3592    3591  1 13:07 ?        00:00:00 Xvfb :99 -screen 0 1280x900x24
-runner      3625    3591 50 13:07 ?        00:00:00 fuse --machine 48 --rom-48 /tmp/zx-spectrum-roms/usr/share/spectrum-roms/48.rom --tape experiments/zx-ux-loader-6000-fuse/output/zx-ux-new-loader-test.tzx --no-auto-load --no-fastload --no-accelerate-loader --no-sound --no-confirm-actions --debugger-command breakpoint 0x5ce7 breakpoint 0x0556 breakpoint 0x6000 breakpoint time 0 if spectrum:frames > 2600 commands 1 print 11111111 print z80:pc print z80:sp continue end commands 2 print 55555555 print z80:pc print z80:sp continue end commands 3 print 60006000 print z80:pc print z80:sp print [0x6000] print [0x6001] print [0x6002] print [0x6003] print [0x6004] print [0x6005] print [0x6006] print [0x6007] print [0x6008] print [0x6009] print [0x600a] print [0x600b] print [0x600c] print [0x600d] print [0x600e] print [0x600f] end commands 4 print 90909090 print z80:pc print z80:sp print spectrum:frames print [0x5ccb] print [0x5ccc] print [0x5ccd] print [0x5cce] print [0x5ccf] print [0x6000] print [0x6001] print [0x6002] print [0x6003] print [0x6004] print [0x6005] print [0x6006] print [0x6007] print [0x6008] print [0x6009] print [0x600a] print [0x600b] print [0x600c] print [0x600d] print [0x600e] print [0x600f] end continue
-runner      3629    3591  0 13:07 ?        00:00:00 grep -E fuse|Xvfb
-monitor_started=2026-10-14T13:07:20Z
-visible_fuse_windows=4194307
-_NET_ACTIVE_WINDOW(WINDOW): window id # 0x400003
-target_window_name=Fuse
-focus_after_activation=4194307
-inject=LOAD_quotes_play
-poll=10 utc=2026-10-14T13:07:29Z bytes=708
-poll=20 utc=2026-10-14T13:07:39Z bytes=708
-poll=30 utc=2026-10-14T13:07:49Z bytes=708
-poll=40 utc=2026-10-14T13:07:59Z bytes=708
-poll=50 utc=2026-10-14T13:08:09Z bytes=708
-monitor_ended=2026-10-14T13:08:16Z result=TIMEOUT_BREAKPOINT
-cleanup_complete=2026-10-14T13:08:16Z
-Result=TIMEOUT_BREAKPOINT
-(fuse:3625): dbind-WARNING **: 13:07:22.955: AT-SPI: Error retrieving accessibility bus address: org.freedesktop.DBus.Error.ServiceUnknown: The name org.a11y.Bus was not provided by any .service files
-0x56b29a2
+Fuse PID=3731 Xvfb PID=3710 WM PID=3714
+runner      3710    3709  1 13:16 ?        00:00:00 Xvfb :99 -screen 0 1280x900x24
+runner      3731    3709  0 13:16 ?        00:00:00 fuse-sdl --machine 48 --rom-48 /tmp/zx-spectrum-roms/usr/share/spectrum-roms/48.rom --tape experiments/zx-ux-loader-6000-fuse/output/zx-ux-new-loader-test.tzx --auto-load --no-fastload --no-accelerate-loader --no-sound --no-confirm-actions --debugger-command breakpoint 0x5ce7 breakpoint 0x0556 breakpoint 0x6000 breakpoint time 0 if spectrum:frames > 10500 commands 1 print 11111111 print z80:pc print z80:sp continue end commands 2 print 55555555 print z80:pc print z80:sp continue end commands 3 print 60006000 print z80:pc print z80:sp print [0x6000] print [0x6001] print [0x6002] print [0x6003] print [0x6004] print [0x6005] print [0x6006] print [0x6007] print [0x6008] print [0x6009] print [0x600a] print [0x600b] print [0x600c] print [0x600d] print [0x600e] print [0x600f] end commands 4 print 90909090 print z80:pc print z80:sp print spectrum:frames print [0x5ccb] print [0x5ccc] print [0x5ccd] print [0x5cce] print [0x5ccf] print [0x6000] print [0x6001] print [0x6002] print [0x6003] print [0x6004] print [0x6005] print [0x6006] print [0x6007] print [0x6008] print [0x6009] print [0x600a] print [0x600b] print [0x600c] print [0x600d] print [0x600e] print [0x600f] end continue
+runner      3734    3732 50 13:16 ?        00:00:00 python3 experiments/zx-ux-loader-6000-fuse/input_xtest.py --display :99 --log experiments/zx-ux-loader-6000-fuse/output/keyboard.json
+runner      3735    3709  0 13:16 ?        00:00:00 grep -E fuse|Xvfb
+monitor_started=2026-10-14T13:16:35Z
+xtest_input_sent=YES
+poll=10 utc=2026-10-14T13:16:44Z bytes=506
+poll=20 utc=2026-10-14T13:16:54Z bytes=506
+poll=30 utc=2026-10-14T13:17:04Z bytes=506
+poll=40 utc=2026-10-14T13:17:14Z bytes=506
+poll=50 utc=2026-10-14T13:17:24Z bytes=506
+monitor_ended=2026-10-14T13:17:34Z result=LOADER_NEVER_ENTERED
+cleanup_complete=2026-10-14T13:17:34Z
+Result=LOADER_NEVER_ENTERED
+{
+  "result": "SENT",
+  "window": "0x400008",
+  "spectrum_keys": [
+    "J",
+    "Ctrl+P",
+    "Ctrl+P",
+    "Enter"
+  ],
+  "display": ":99"
+}
