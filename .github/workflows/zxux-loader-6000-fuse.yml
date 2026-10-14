@@ -8,6 +8,13 @@ on:
       - experiments/zx-ux-loader-6000-fuse/**
       - '!experiments/zx-ux-loader-6000-fuse/output/**'
 
+# GitHub Actions permits at most one running and one pending run per group.
+# A newer push replaces any older pending run; the current Fuse proof completes.
+# Keep this group shared by all runs of this project on main.
+concurrency:
+  group: zx-ux-loader-6000-main
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
