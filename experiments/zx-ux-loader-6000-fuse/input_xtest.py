@@ -36,8 +36,23 @@ def visible_fuse_window(display):
     raise RuntimeError("A viewable Fuse SDL window did not appear in 60 s")
 
 
-def send_rom_load(display):
+def send_rom_load(display, outdir):
+    outdir.mkdir(parents=True, exist_ok=True)
     win = visible_fuse_window(display)
+
+    def snapshot(stage):
+        destination = outdir / f"key-{stage}.png"
+        xwd = subprocess.run(
+            ["xwd", "-root", "-silent"],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            env=dict(os.environ, DISPLAY=display), check=True,
+        )
+        subprocess.run(
+            ["convert", "xwd:-", str(destination)],
+            input=xwd.stdout, capture_output=True, check=True,
+        )
+        return destination.stat().st_size
+
     x11 = ctypes.CDLL("libX11.so.6")
     xtst = ctypes.CDLL("libXtst.so.6")
     x11.XOpenDisplay.argtypes = [ctypes.c_char_p]
@@ -57,13 +72,14 @@ def send_rom_load(display):
     try:
         x11.XSetInputFocus(ptr, win, 1, 0)
         x11.XFlush(ptr)
-        time.sleep(0.3)
+        time.sleep(2)
+        snapshot("00-ready")
 
         def key(name, pressed):
             if not xtst.XTestFakeKeyEvent(ptr, KEYS[name], int(pressed), 0):
                 raise RuntimeError("XTestFakeKeyEvent failed for " + name)
             x11.XFlush(ptr)
-            time.sleep(0.075)
+            time.sleep(0.2)
 
         def chord(modifier, name):
             key(modifier, True)
@@ -73,10 +89,18 @@ def send_rom_load(display):
 
         key("j", True)
         key("j", False)
+        time.sleep(0.6)
+        snapshot("01-load-key")
         chord("Control_L", "p")
         chord("Control_L", "p")
+        time.sleep(0.6)
+        snapshot("02-quotes")
         key("Return", True)
         key("Return", False)
+        time.sleep(1)
+        snapshot("03-return")
+        time.sleep(5)
+        snapshot("04-wait")
     finally:
         x11.XCloseDisplay(ptr)
     return {"result": "SENT", "window": hex(win),
@@ -88,9 +112,10 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--display", default=":99")
     p.add_argument("--log", type=Path, required=True)
+    p.add_argument("--output-dir", type=Path, required=True)
     args = p.parse_args()
     try:
-        result = send_rom_load(args.display)
+        result = send_rom_load(args.display, args.output_dir)
     except Exception as error:
         failure = {"result": "ERROR", "error": str(error), "display": args.display}
         args.log.write_text(json.dumps(failure, indent=2) + "\n")

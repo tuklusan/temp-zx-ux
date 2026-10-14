@@ -177,13 +177,8 @@ jobs:
           rm -f "$d/keyboard.json" "$d/keyboard.log" "$d/after-input.xwd" "$d/after-input.png"
           (
             if python3 experiments/zx-ux-loader-6000-fuse/input_xtest.py \
-                  --display ":99" --log "$d/keyboard.json" >"$d/keyboard.log" 2>&1; then
+                  --display ":99" --log "$d/keyboard.json" --output-dir "$d" >"$d/keyboard.log" 2>&1; then
               echo "xtest_input_sent=YES" >>"$d/diagnostics.txt"
-              sleep 1
-              # Fuse-native F1 menu shortcut checks delivery of host keys.
-              xdotool key F1 >>"$d/diagnostics.txt" 2>&1 || true
-              echo "probe_menu_key=F1" >>"$d/diagnostics.txt"
-              sleep 1
             else
               echo "xtest_input_sent=NO" >>"$d/diagnostics.txt"
             fi
@@ -199,7 +194,7 @@ jobs:
           # Force a flush on exit before examining the debugger output.
           result="TIMEOUT"
           echo "monitor_started=$(date -u +%FT%TZ)" >> "$d/diagnostics.txt"
-          # Control-only: no debugger, inspect screen after 25 seconds.
+          # Control-only: screenshot each keystroke stage before resuming debugger.
           for i in $(seq 1 90); do
             if grep -q '^xtest_probe=COMPLETE$' "$d/diagnostics.txt"; then
               result="PROBE_FINISHED"
