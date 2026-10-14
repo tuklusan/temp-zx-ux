@@ -1,0 +1,108 @@
+name: ZX-UX Compact TZX Fuse Verification
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/zxux-compact-fuse-verify.yml
+
+env:
+  DISPLAY: ":99"
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: main
+
+      - name: Install Fuse
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y             fuse-emulator-gtk=1.6.0+dfsg1-2build3             libspectrum8=1.5.0-4build2             xvfb=2:21.1.12-1ubuntu1.8
+
+      - name: Rebuild compact TZX
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 experiments/zx-ux-loader-6000-fuse/build.py
+          f=experiments/zx-ux-loader-6000-fuse/output/zx-ux-new-loader-test.tzx
+          test "$(stat -c %s "$f")" = "27305"
+
+      - name: Verify entry at 0x6000
+        shell: bash
+        run: |
+          set -euo pipefail
+          d=experiments/zx-ux-loader-6000-fuse/output
+
+          Xvfb :99 -screen 0 1280x900x24 >"$d/compact-xvfb.log" 2>&1 &
+          xvfb_pid=$!
+          sleep 1
+
+          cat >"$d/compact-debugger.txt" <<'DBG'
+          breakpoint 0x6000
+          breakpoint time 0 if spectrum:frames > 8000
+          commands 1
+          print 60006000
+          print z80:pc
+          print z80:sp
+          print [0x6000]
+          print [0x6001]
+          print [0x6002]
+          print [0x6003]
+          print [0x6004]
+          print [0x6005]
+          print [0x6006]
+          print [0x6007]
+          end
+          commands 2
+          print 90909090
+          print z80:pc
+          print z80:sp
+          print [0x6000]
+          print [0x6001]
+          print [0x6002]
+          print [0x6003]
+          print [0x6004]
+          print [0x6005]
+          print [0x6006]
+          print [0x6007]
+          end
+          continue
+          DBG
+
+          cmd="$(cat "$d/compact-debugger.txt")"
+          stdbuf -oL -eL fuse --machine 48             --tape "$d/zx-ux-new-loader-test.tzx"             --auto-load --no-fastload --no-accelerate-loader             --no-confirm-actions --debugger-command "$cmd"             >"$d/compact-fuse.log" 2>&1 &
+          fuse_pid=$!
+
+          result=""
+          for i in $(seq 1 210); do
+            if grep -q "60006000" "$d/compact-fuse.log"; then
+              result="ENTRY_6000"
+              break
+            fi
+            if grep -q "90909090" "$d/compact-fuse.log"; then
+              result="TIMEOUT"
+              break
+            fi
+            if ! kill -0 "$fuse_pid" 2>/dev/null; then
+              result="FUSE_EXITED"
+              break
+            fi
+            sleep 1
+          done
+
+          cat "$d/compact-fuse.log" || true
+          kill "$fuse_pid" 2>/dev/null || true
+          kill "$xvfb_pid" 2>/dev/null || true
+
+          echo "result=$result"
+          test "$result" = "ENTRY_6000"
+          grep -q "60006000" "$d/compact-fuse.log"
+          grep -q "0xc3" "$d/compact-fuse.log"
