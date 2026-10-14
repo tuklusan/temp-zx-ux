@@ -63,13 +63,22 @@ jobs:
           breakpoint 0x0daf
           breakpoint 0x6000
           breakpoint time 0 if spectrum:frames > 8000
+
           commands 1
           print 11111111
           print z80:pc
           print z80:sp
           continue
           end
+
           commands 2
+          print 22222222
+          print z80:pc
+          print z80:sp
+          continue
+          end
+
+          commands 3
           print 60006000
           print z80:pc
           print z80:sp
@@ -90,13 +99,8 @@ jobs:
           print [0x600e]
           print [0x600f]
           end
+
           commands 4
-          print 22222222
-          print z80:pc
-          print z80:sp
-          continue
-          end
-          commands 3
           print 90909090
           print z80:pc
           print z80:sp
@@ -117,6 +121,7 @@ jobs:
           print [0x600e]
           print [0x600f]
           end
+
           continue
           DBG
 
