@@ -1,29 +1,34 @@
-Fuse PID=3558 Xvfb PID=3527 WM PID=3531
-runner      3527    3526  1 17:58 ?        00:00:00 Xvfb :99 -screen 0 1280x900x24
-runner      3558    3526 23 17:58 ?        00:00:00 fuse-sdl --machine 48 --rom-48 /tmp/zx-spectrum-roms/usr/share/spectrum-roms/48.rom --tape experiments/zx-ux-loader-6000-fuse/output/zx-ux-new-loader-test.tzx --no-auto-load --no-traps --no-fastload --no-accelerate-loader --no-sound --no-confirm-actions --debugger-command breakpoint 0x6000 breakpoint time 0 if spectrum:frames > 10500 commands 1 print 60006000 print z80:pc print spectrum:frames print [0x6000] print [0x6001] print [0x6002] print [0x6003] print [0x6004] print [0x6005] print [0x6006] print [0x6007] print [0x6008] print [0x6009] print [0x600a] print [0x600b] print [0x600c] print [0x600d] print [0x600e] print [0x600f] continue end commands 2 print 90909090 print z80:pc print spectrum:frames print 70707070 print [0xffef] print [0xfff0] print [0xfff1] print [0xfff2] print [0xfff3] print [0xfff4] print [0xfff5] print [0xfff6] print [0xfff7] print [0xfff8] print [0xfff9] print [0xfffa] print [0xfffb] print [0xfffc] print [0xfffd] print [0xfffe] print [0xffff] end continue
-runner      3584    3583  0 17:58 ?        00:00:00 python3 experiments/zx-ux-loader-6000-fuse/input_xtest.py --display :99 --log experiments/zx-ux-loader-6000-fuse/output/keyboard.json --output-dir experiments/zx-ux-loader-6000-fuse/output
-runner      3588    3526  0 17:58 ?        00:00:00 grep -E fuse|Xvfb
-monitor_started=2026-10-14T17:58:17Z
-poll=10 utc=2026-10-14T17:58:26Z bytes=506
+Fuse PID=3555 Xvfb PID=3529 WM PID=3533
+runner      3529    3528  1 18:02 ?        00:00:00 Xvfb :99 -screen 0 1280x900x24
+runner      3555    3528  6 18:02 ?        00:00:00 fuse-sdl --machine 48 --rom-48 /tmp/zx-spectrum-roms/usr/share/spectrum-roms/48.rom --tape experiments/zx-ux-loader-6000-fuse/output/zx-ux-new-loader-test.tzx --no-auto-load --no-traps --no-fastload --no-accelerate-loader --no-sound --no-confirm-actions --debugger-command breakpoint 0x6000 breakpoint time 0 if spectrum:frames > 10500 commands 1 print 60006000 print z80:pc print spectrum:frames print [0x6000] print [0x6001] print [0x6002] print [0x6003] print [0x6004] print [0x6005] print [0x6006] print [0x6007] print [0x6008] print [0x6009] print [0x600a] print [0x600b] print [0x600c] print [0x600d] print [0x600e] print [0x600f] continue end commands 2 print 90909090 print z80:pc print spectrum:frames print 70707070 print [0xffef] print [0xfff0] print [0xfff1] print [0xfff2] print [0xfff3] print [0xfff4] print [0xfff5] print [0xfff6] print [0xfff7] print [0xfff8] print [0xfff9] print [0xfffa] print [0xfffb] print [0xfffc] print [0xfffd] print [0xfffe] print [0xffff] end continue
+runner      3610    3608  0 18:02 ?        00:00:00 python3 experiments/zx-ux-loader-6000-fuse/input_xtest.py --display :99 --log experiments/zx-ux-loader-6000-fuse/output/keyboard.json --output-dir experiments/zx-ux-loader-6000-fuse/output
+runner      3613    3528  0 18:02 ?        00:00:00 grep -E fuse|Xvfb
+monitor_started=2026-10-14T18:02:59Z
+poll=10 utc=2026-10-14T18:03:08Z bytes=506
 xtest_input_sent=YES
 xtest_probe=COMPLETE
-poll=20 utc=2026-10-14T17:58:36Z bytes=506
-poll=30 utc=2026-10-14T17:58:46Z bytes=506
-poll=40 utc=2026-10-14T17:58:56Z bytes=506
-poll=50 utc=2026-10-14T17:59:06Z bytes=506
-poll=60 utc=2026-10-14T17:59:16Z bytes=506
-poll=70 utc=2026-10-14T17:59:26Z bytes=506
-poll=80 utc=2026-10-14T17:59:36Z bytes=506
-poll=90 utc=2026-10-14T17:59:47Z bytes=506
-poll=100 utc=2026-10-14T17:59:57Z bytes=506
-poll=110 utc=2026-10-14T18:00:07Z bytes=506
-poll=120 utc=2026-10-14T18:00:17Z bytes=506
-poll=130 utc=2026-10-14T18:00:27Z bytes=506
-poll=140 utc=2026-10-14T18:00:37Z bytes=506
-poll=150 utc=2026-10-14T18:00:47Z bytes=506
-monitor_ended=2026-10-14T18:00:55Z result=ENTRY_6000
-cleanup_complete=2026-10-14T18:00:55Z
-Result=ENTRY_6000
+poll=20 utc=2026-10-14T18:03:18Z bytes=506
+poll=30 utc=2026-10-14T18:03:28Z bytes=506
+poll=40 utc=2026-10-14T18:03:38Z bytes=506
+poll=50 utc=2026-10-14T18:03:48Z bytes=506
+poll=60 utc=2026-10-14T18:03:58Z bytes=506
+poll=70 utc=2026-10-14T18:04:08Z bytes=506
+poll=80 utc=2026-10-14T18:04:19Z bytes=506
+poll=90 utc=2026-10-14T18:04:29Z bytes=506
+poll=100 utc=2026-10-14T18:04:39Z bytes=506
+poll=110 utc=2026-10-14T18:04:49Z bytes=506
+poll=120 utc=2026-10-14T18:04:59Z bytes=506
+poll=130 utc=2026-10-14T18:05:09Z bytes=506
+poll=140 utc=2026-10-14T18:05:19Z bytes=506
+poll=150 utc=2026-10-14T18:05:29Z bytes=506
+poll=160 utc=2026-10-14T18:05:39Z bytes=506
+poll=170 utc=2026-10-14T18:05:49Z bytes=506
+poll=180 utc=2026-10-14T18:05:59Z bytes=506
+poll=190 utc=2026-10-14T18:06:09Z bytes=506
+poll=200 utc=2026-10-14T18:06:19Z bytes=506
+monitor_ended=2026-10-14T18:06:29Z result=TIMEOUT_BREAKPOINT
+cleanup_complete=2026-10-14T18:06:29Z
+Result=TIMEOUT_BREAKPOINT
 {
   "result": "SENT",
   "window": "0x400008",
@@ -35,4 +40,4 @@ Result=ENTRY_6000
   ],
   "display": ":99"
 }
-0x3939e70
+0x56b29a2
