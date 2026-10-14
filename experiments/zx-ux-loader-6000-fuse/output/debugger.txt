@@ -1,8 +1,7 @@
 breakpoint 0x5ce7
-breakpoint 0x0daf if z80:sp > 0xff00
+breakpoint 0x0556
 breakpoint 0x6000
 breakpoint time 0 if spectrum:frames > 8000
-breakpoint 0x0556
 commands 1
 print 11111111
 print z80:pc
@@ -10,7 +9,7 @@ print z80:sp
 continue
 end
 commands 2
-print 22222222
+print 55555555
 print z80:pc
 print z80:sp
 continue
@@ -35,11 +34,6 @@ print [0x600c]
 print [0x600d]
 print [0x600e]
 print [0x600f]
-end
-commands 5
-print 55555555
-print z80:pc
-continue
 end
 commands 4
 print 90909090

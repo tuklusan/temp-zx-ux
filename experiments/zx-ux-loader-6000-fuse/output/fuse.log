@@ -12,7 +12,4 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 
-(fuse:3201): dbind-WARNING **: 06:44:01.662: AT-SPI: Error retrieving accessibility bus address: org.freedesktop.DBus.Error.ServiceUnknown: The name org.a11y.Bus was not provided by any .service files
-0x153158e
-0xdaf
-0xff52
+(fuse:3297): dbind-WARNING **: 06:48:19.498: AT-SPI: Error retrieving accessibility bus address: org.freedesktop.DBus.Error.ServiceUnknown: The name org.a11y.Bus was not provided by any .service files
