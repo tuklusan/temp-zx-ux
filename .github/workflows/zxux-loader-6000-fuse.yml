@@ -60,6 +60,7 @@ jobs:
 
           cat >"$d/debugger.txt" <<'DBG'
           breakpoint 0x5ce7
+          breakpoint 0x0daf
           breakpoint 0x6000
           breakpoint time 0 if spectrum:frames > 8000
           commands 1
@@ -89,6 +90,12 @@ jobs:
           print [0x600e]
           print [0x600f]
           end
+          commands 4
+          print 22222222
+          print z80:pc
+          print z80:sp
+          continue
+          end
           commands 3
           print 90909090
           print z80:pc
@@ -117,6 +124,8 @@ jobs:
           stdbuf -oL -eL fuse --machine 48             --tape "$d/zx-ux-new-loader-test.tzx"             --auto-load --no-fastload --no-accelerate-loader             --no-confirm-actions --debugger-command "$cmd"             >"$d/fuse.log" 2>&1 &
           fuse_pid=$!
 
+          echo "Fuse PID=$fuse_pid Xvfb PID=$xvfb_pid" > "$d/diagnostics.txt"
+          ps -ef | grep -E 'fuse|Xvfb' >> "$d/diagnostics.txt" || true
           result=""
           for i in $(seq 1 230); do
             if grep -q "60006000" "$d/fuse.log"; then
@@ -143,6 +152,8 @@ jobs:
           fi
 
           echo "$result" | tee "$d/fuse-result.txt"
+          echo "Result=$result" >> "$d/diagnostics.txt"
+          grep -E '11111111|22222222|60006000|90909090|error|Error|Unknown' "$d/fuse.log" >> "$d/diagnostics.txt" || true
           cat "$d/fuse.log" || true
 
           xwd -root -silent -out "$d/fuse-final.xwd" || true
