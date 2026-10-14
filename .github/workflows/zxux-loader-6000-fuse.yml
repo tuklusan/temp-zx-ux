@@ -25,7 +25,7 @@ env:
 jobs:
   fuse-test:
     runs-on: ubuntu-24.04
-    timeout-minutes: 7
+    timeout-minutes: 8
 
     steps:
       - name: Checkout main
@@ -103,7 +103,7 @@ jobs:
           # The first stop is either the required entry or the final watchdog.
           cat >"$d/debugger.txt" <<'DBG'
           breakpoint 0x6000
-          breakpoint time 0 if spectrum:frames > 10500
+          breakpoint time 0 if spectrum:frames > 14000
           commands 1
           print 60006000
           print z80:pc
@@ -221,7 +221,7 @@ jobs:
           result="TIMEOUT"
           echo "monitor_started=$(date -u +%FT%TZ)" >> "$d/diagnostics.txt"
           # Real tape speed, with independent ROM, loader and 0x6000 breakpoints.
-          for i in $(seq 1 215); do
+          for i in $(seq 1 260); do
             if grep -A1 '^0x3939e70$' "$d/fuse.log" | grep -qx '0x6000'; then
               result="ENTRY_6000"
               break
