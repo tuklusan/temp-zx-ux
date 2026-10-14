@@ -92,8 +92,11 @@ class TestBrianTurbo(unittest.TestCase):
             self.assertEqual(build(source_tap(out),self.lines)[0],build(self.tap,self.lines)[0])
 
     def test_tzx_payload(self):
-        file=ROOT/'output'/'zx-ux-brian-turbo.tzx'
-        if file.is_file():
-            self.assertTrue(verify(file,ROOT/'ZX-UX.tap',ROOT/'text-lines.txt'))
+        # Test the current source tape, not a possibly stale output from a prior release.
+        from tempfile import TemporaryDirectory
+        with TemporaryDirectory() as d:
+            out=Path(d)/'generated.tzx'
+            out.write_bytes(build(self.tap,self.lines)[0])
+            self.assertTrue(verify(out,ROOT/'ZX-UX.tap',ROOT/'text-lines.txt'))
 
 if __name__=='__main__':unittest.main()
