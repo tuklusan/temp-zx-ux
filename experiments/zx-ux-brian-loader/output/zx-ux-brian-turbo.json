@@ -1,0 +1,234 @@
+{
+  "source_tap_sha256": "9ff03bfbfcd33cc11e9a4f45b4197b67f0abb347052957bc36b74102eaf09004",
+  "payload_sha256": "31dcbeaa01bf56e9bd96e8449eb7b3dbd5a28523ca830c56ce61e07343e425cf",
+  "payload_bytes": 24802,
+  "source_code_blocks": [
+    {
+      "addr": 24576,
+      "size": 21702,
+      "name": "unix      "
+    },
+    {
+      "addr": 46278,
+      "size": 3100,
+      "name": "fs        "
+    }
+  ],
+  "start": 24576,
+  "end": 49377,
+  "entry": 24576,
+  "program_name": "ZX-UX UNIX",
+  "loader_address": 53248,
+  "loader_bytes": 1125,
+  "labels": {
+    "start": 53248,
+    "loop": 53300,
+    "final": 53340,
+    "beep_call": 53348,
+    "hold_final": 53354,
+    "jump_kernel": 53357,
+    "error": 53360,
+    "error_halt": 53364,
+    "read_turbo": 53368,
+    "find_first_edge": 53382,
+    "warmup_spin": 53389,
+    "pilot": 53403,
+    "sync": 53418,
+    "store": 53445,
+    "next_byte": 53453,
+    "next_bit": 53455,
+    "read_fail": 53480,
+    "print_row": 53484,
+    "glyph_char": 53512,
+    "glyph_scan": 53530,
+    "row": 53550,
+    "text_cursor": 53551,
+    "dest": 53553,
+    "size_cursor": 53555,
+    "sizes": 53557,
+    "text": 53605
+  },
+  "turbo": {
+    "block": "0x11",
+    "pilot": 2042,
+    "pilot_edges": 247,
+    "sync_1": 875,
+    "sync_2": 613,
+    "zero_half": 513,
+    "one_half": 1025,
+    "data_bit_speed_multiplier_vs_ROM": 1.667
+  },
+  "segments": [
+    {
+      "block": 1,
+      "address": 24576,
+      "bytes": 1034,
+      "xor": 254,
+      "pause_ms": 400
+    },
+    {
+      "block": 2,
+      "address": 25610,
+      "bytes": 1034,
+      "xor": 202,
+      "pause_ms": 400
+    },
+    {
+      "block": 3,
+      "address": 26644,
+      "bytes": 1034,
+      "xor": 14,
+      "pause_ms": 400
+    },
+    {
+      "block": 4,
+      "address": 27678,
+      "bytes": 1034,
+      "xor": 121,
+      "pause_ms": 400
+    },
+    {
+      "block": 5,
+      "address": 28712,
+      "bytes": 1034,
+      "xor": 163,
+      "pause_ms": 400
+    },
+    {
+      "block": 6,
+      "address": 29746,
+      "bytes": 1034,
+      "xor": 194,
+      "pause_ms": 400
+    },
+    {
+      "block": 7,
+      "address": 30780,
+      "bytes": 1034,
+      "xor": 94,
+      "pause_ms": 400
+    },
+    {
+      "block": 8,
+      "address": 31814,
+      "bytes": 1034,
+      "xor": 119,
+      "pause_ms": 400
+    },
+    {
+      "block": 9,
+      "address": 32848,
+      "bytes": 1034,
+      "xor": 40,
+      "pause_ms": 400
+    },
+    {
+      "block": 10,
+      "address": 33882,
+      "bytes": 1034,
+      "xor": 140,
+      "pause_ms": 400
+    },
+    {
+      "block": 11,
+      "address": 34916,
+      "bytes": 1033,
+      "xor": 2,
+      "pause_ms": 400
+    },
+    {
+      "block": 12,
+      "address": 35949,
+      "bytes": 1033,
+      "xor": 232,
+      "pause_ms": 400
+    },
+    {
+      "block": 13,
+      "address": 36982,
+      "bytes": 1033,
+      "xor": 141,
+      "pause_ms": 400
+    },
+    {
+      "block": 14,
+      "address": 38015,
+      "bytes": 1033,
+      "xor": 93,
+      "pause_ms": 400
+    },
+    {
+      "block": 15,
+      "address": 39048,
+      "bytes": 1033,
+      "xor": 151,
+      "pause_ms": 400
+    },
+    {
+      "block": 16,
+      "address": 40081,
+      "bytes": 1033,
+      "xor": 90,
+      "pause_ms": 400
+    },
+    {
+      "block": 17,
+      "address": 41114,
+      "bytes": 1033,
+      "xor": 216,
+      "pause_ms": 400
+    },
+    {
+      "block": 18,
+      "address": 42147,
+      "bytes": 1033,
+      "xor": 131,
+      "pause_ms": 400
+    },
+    {
+      "block": 19,
+      "address": 43180,
+      "bytes": 1033,
+      "xor": 95,
+      "pause_ms": 400
+    },
+    {
+      "block": 20,
+      "address": 44213,
+      "bytes": 1033,
+      "xor": 160,
+      "pause_ms": 400
+    },
+    {
+      "block": 21,
+      "address": 45246,
+      "bytes": 1033,
+      "xor": 34,
+      "pause_ms": 400
+    },
+    {
+      "block": 22,
+      "address": 46279,
+      "bytes": 1033,
+      "xor": 182,
+      "pause_ms": 400
+    },
+    {
+      "block": 23,
+      "address": 47312,
+      "bytes": 1033,
+      "xor": 82,
+      "pause_ms": 400
+    },
+    {
+      "block": 24,
+      "address": 48345,
+      "bytes": 1033,
+      "xor": 190,
+      "pause_ms": 0
+    }
+  ],
+  "tzx_bytes": 26520,
+  "tzx_sha256": "fe4597a49c336f7b96549b51fd0efbc2bf12fbd864ba7c716ccfddbd35193b7b",
+  "beep": "one ROM 0x03B5 BEEPER call, DE=250 HL=407, then 25x 50Hz HALT"
+}
