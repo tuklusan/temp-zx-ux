@@ -173,14 +173,14 @@ jobs:
           echo "Fuse PID=$fuse_pid Xvfb PID=$xvfb_pid WM PID=$wm_pid" > "$d/diagnostics.txt"
           # Reuse the proven SDL/XTEST keystrokes from tests/fuse_boot.py.
           # Spectrum double quote is CTRL+P, NOT a host quotedbl key.
-          # Never reuse success markers or PNGs committed by prior CI runs.
+          # Fresh proof only: clear untrusted artifacts persisted by older runs.
           rm -f "$d/keyboard.json" "$d/keyboard.log" "$d/after-input.xwd" "$d/after-input.png"
           (
             if python3 experiments/zx-ux-loader-6000-fuse/input_xtest.py \
                   --display ":99" --log "$d/keyboard.json" >"$d/keyboard.log" 2>&1; then
               echo "xtest_input_sent=YES" >>"$d/diagnostics.txt"
               sleep 1
-              # F1 probes the Fuse-native menu, not the Spectrum keyboard.
+              # Fuse-native F1 menu shortcut checks delivery of host keys.
               xdotool key F1 >>"$d/diagnostics.txt" 2>&1 || true
               echo "probe_menu_key=F1" >>"$d/diagnostics.txt"
               sleep 1
@@ -201,185 +201,11 @@ jobs:
           echo "monitor_started=$(date -u +%FT%TZ)" >> "$d/diagnostics.txt"
           # Control-only: no debugger, inspect screen after 25 seconds.
           for i in $(seq 1 90); do
-            if grep -q '^xtest_probe=COMPLETE
-              result="ENTRY_6000"
-              break
-            fi
-            if grep -q '^0x56b29a2$' "$d/fuse.log"; then
-              result="TIMEOUT_BREAKPOINT"
-              break
-            fi
-            if ! kill -0 "$fuse_pid" 2>/dev/null; then
-              result="FUSE_EXITED"
-              break
-            fi
-            if [ "$i" -ge 60 ] && ! grep -q '^0xa98ac7$' "$d/fuse.log"; then
-              result="LOADER_NEVER_ENTERED"
-              break
-            fi
-            if ((i % 10 == 0)); then
-              echo "poll=$i utc=$(date -u +%FT%TZ) bytes=$(wc -c < "$d/fuse.log")" | tee -a "$d/diagnostics.txt"
-              grep -E '^0x(34fb5e3|a98ac7|153158e|3939e70|56b29a2)$' "$d/fuse.log" | tail -10 || true
-            fi
-            sleep 1
-          done
-
-          # Persist result before optional screenshots or process cleanup.
-          result="PROBE_ONLY_NO_DEBUGGER"
-          echo "$result" | tee "$d/fuse-result.txt"
-          echo "monitor_ended=$(date -u +%FT%TZ) result=$result" >> "$d/diagnostics.txt"
-          timeout -k 2s 5s xwd -root -silent -out "$d/fuse-final.xwd" || echo "screenshot_xwd_failed" >> "$d/diagnostics.txt"
-          if [ -s "$d/fuse-final.xwd" ]; then
-            timeout -k 2s 5s convert "$d/fuse-final.xwd" "$d/fuse-final.png" || echo "screenshot_png_failed" >> "$d/diagnostics.txt"
-          fi
-
-          kill "$tape_starter_pid" 2>/dev/null || true
-          kill -KILL "$fuse_pid" 2>/dev/null || true
-          kill "$wm_pid" 2>/dev/null || true
-          kill -KILL "$xvfb_pid" 2>/dev/null || true
-          # Never wait indefinitely on a GUI emulator in a cloud runner.
-          echo "cleanup_complete=$(date -u +%FT%TZ)" >> "$d/diagnostics.txt"
-          if grep -A1 '^0x3939e70$' "$d/fuse.log" | grep -qx '0x6000'; then
-            result="ENTRY_6000"
-            echo "$result" > "$d/fuse-result.txt"
-          fi
-
-          echo "$result" | tee "$d/fuse-result.txt"
-          echo "Result=$result" >> "$d/diagnostics.txt"
-          if test -f "$d/keyboard.json"; then cat "$d/keyboard.json" >> "$d/diagnostics.txt"; fi
-          grep -E '0x3939e70|0xa98ac7|0x34fb5e3|0x56b29a2|error|Error|Unknown' "$d/fuse.log" >> "$d/diagnostics.txt" || true
-          cat "$d/keyboard.log" || true
-          cat "$d/fuse.log" || true
-
-      - name: Record hashes
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          d=experiments/zx-ux-loader-6000-fuse/output
-          sha256sum "$d/zx-ux-new-loader-test.tzx" "$d/zx-ux-new-loader-test.tzx.zip" "$d/fuse.log" > "$d/SHA256SUMS"
-          if test -s "$d/fuse-final.png"; then sha256sum "$d/fuse-final.png" >> "$d/SHA256SUMS"; fi
-
-      - name: Persist diagnostic output
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add experiments/zx-ux-loader-6000-fuse/output
-          if git diff --cached --quiet; then
-            exit 0
-          fi
-          # Rebase without merging generated binary diagnostic files.
-          # Keep output from this runner, but base its commit on the latest main.
-          git fetch origin main
-          git reset --mixed origin/main
-          git add experiments/zx-ux-loader-6000-fuse/output
-          if git diff --cached --quiet; then exit 0; fi
-          git commit -m "ZX-UX: persist 6000 loader Fuse diagnostics"
-          git push origin HEAD:main
-
-      - name: Assert entry reached
-        shell: bash
-        run: |
-          set -euo pipefail
-          d=experiments/zx-ux-loader-6000-fuse/output
-          cat "$d/fuse-result.txt"
-          test "$(cat "$d/fuse-result.txt")" = "ENTRY_6000"
-          grep -A1 '^0x3939e70$' "$d/fuse.log" | grep -qx '0x6000'
- "$d/diagnostics.txt"; then
+            if grep -q '^xtest_probe=COMPLETE$' "$d/diagnostics.txt"; then
               result="PROBE_FINISHED"
               break
             fi
-            if grep -A1 '^0x3939e70
-              result="ENTRY_6000"
-              break
-            fi
-            if grep -q '^0x56b29a2$' "$d/fuse.log"; then
-              result="TIMEOUT_BREAKPOINT"
-              break
-            fi
-            if ! kill -0 "$fuse_pid" 2>/dev/null; then
-              result="FUSE_EXITED"
-              break
-            fi
-            if [ "$i" -ge 60 ] && ! grep -q '^0xa98ac7$' "$d/fuse.log"; then
-              result="LOADER_NEVER_ENTERED"
-              break
-            fi
-            if ((i % 10 == 0)); then
-              echo "poll=$i utc=$(date -u +%FT%TZ) bytes=$(wc -c < "$d/fuse.log")" | tee -a "$d/diagnostics.txt"
-              grep -E '^0x(34fb5e3|a98ac7|153158e|3939e70|56b29a2)$' "$d/fuse.log" | tail -10 || true
-            fi
-            sleep 1
-          done
-
-          # Persist result before optional screenshots or process cleanup.
-          result="PROBE_ONLY_NO_DEBUGGER"
-          echo "$result" | tee "$d/fuse-result.txt"
-          echo "monitor_ended=$(date -u +%FT%TZ) result=$result" >> "$d/diagnostics.txt"
-          timeout -k 2s 5s xwd -root -silent -out "$d/fuse-final.xwd" || echo "screenshot_xwd_failed" >> "$d/diagnostics.txt"
-          if [ -s "$d/fuse-final.xwd" ]; then
-            timeout -k 2s 5s convert "$d/fuse-final.xwd" "$d/fuse-final.png" || echo "screenshot_png_failed" >> "$d/diagnostics.txt"
-          fi
-
-          kill "$tape_starter_pid" 2>/dev/null || true
-          kill -KILL "$fuse_pid" 2>/dev/null || true
-          kill "$wm_pid" 2>/dev/null || true
-          kill -KILL "$xvfb_pid" 2>/dev/null || true
-          # Never wait indefinitely on a GUI emulator in a cloud runner.
-          echo "cleanup_complete=$(date -u +%FT%TZ)" >> "$d/diagnostics.txt"
-          if grep -A1 '^0x3939e70$' "$d/fuse.log" | grep -qx '0x6000'; then
-            result="ENTRY_6000"
-            echo "$result" > "$d/fuse-result.txt"
-          fi
-
-          echo "$result" | tee "$d/fuse-result.txt"
-          echo "Result=$result" >> "$d/diagnostics.txt"
-          if test -f "$d/keyboard.json"; then cat "$d/keyboard.json" >> "$d/diagnostics.txt"; fi
-          grep -E '0x3939e70|0xa98ac7|0x34fb5e3|0x56b29a2|error|Error|Unknown' "$d/fuse.log" >> "$d/diagnostics.txt" || true
-          cat "$d/keyboard.log" || true
-          cat "$d/fuse.log" || true
-
-      - name: Record hashes
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          d=experiments/zx-ux-loader-6000-fuse/output
-          sha256sum "$d/zx-ux-new-loader-test.tzx" "$d/zx-ux-new-loader-test.tzx.zip" "$d/fuse.log" > "$d/SHA256SUMS"
-          if test -s "$d/fuse-final.png"; then sha256sum "$d/fuse-final.png" >> "$d/SHA256SUMS"; fi
-
-      - name: Persist diagnostic output
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add experiments/zx-ux-loader-6000-fuse/output
-          if git diff --cached --quiet; then
-            exit 0
-          fi
-          # Rebase without merging generated binary diagnostic files.
-          # Keep output from this runner, but base its commit on the latest main.
-          git fetch origin main
-          git reset --mixed origin/main
-          git add experiments/zx-ux-loader-6000-fuse/output
-          if git diff --cached --quiet; then exit 0; fi
-          git commit -m "ZX-UX: persist 6000 loader Fuse diagnostics"
-          git push origin HEAD:main
-
-      - name: Assert entry reached
-        shell: bash
-        run: |
-          set -euo pipefail
-          d=experiments/zx-ux-loader-6000-fuse/output
-          cat "$d/fuse-result.txt"
-          test "$(cat "$d/fuse-result.txt")" = "ENTRY_6000"
-          grep -A1 '^0x3939e70$' "$d/fuse.log" | grep -qx '0x6000'
- "$d/fuse.log" | grep -qx '0x6000'; then
+            if grep -A1 '^0x3939e70$' "$d/fuse.log" | grep -qx '0x6000'; then
               result="ENTRY_6000"
               break
             fi
