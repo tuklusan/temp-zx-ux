@@ -6,6 +6,10 @@
 ;   tar x[v]f /dev/cassette/label [file ...] extract it (or some files)
 ;   tap r|t|x [file ...]                     v1 'tap', same archives
 ;
+;  t with no archive name (tap t) lists the whole tape: each program as
+;  /dev/cassette/NAME, each archive as /dev/cassette/LABEL: and its
+;  members, until BREAK.
+;
 ;  Directories are archived with everything below them.  Extracting
 ;  replaces existing files without asking and makes missing directories.
 ;  Packed files travel as their packed stream and come back packed.
@@ -30,6 +34,7 @@ TP_W    equ TV+10               ; tape buffer fill pointer
 TP_S    equ TV+12               ; payload bytes still to send
 TP_BK   equ TV+14               ; packed stream block number
 TP_RD   equ TV+16               ; /dev/mem fd (packed streams, i-nodes)
+TP_ONE  equ TV+18               ; 0: t without a name, the whole tape
 TP_X    equ TV+19               ; the file existed (extract)
 TP_ERR  equ TV+20               ; write failed (extract)
 TP_I    equ TV+21               ; argument scan index
@@ -496,13 +501,23 @@ tpls:   ld a,(TP_PH)
 ; ---------------------------------------------------------------------
 ;  list or extract
 ; ---------------------------------------------------------------------
-tpget:  xor a
+tpget:  ld a,(TP_LB)             ; t and no archive name: the whole tape
+        sub ' '
+        ld b,a
+        ld a,(TP_K)
+        sub 't'
+        or b
+        ld (TP_ONE),a
+.go:    xor a
         ld (TP_IN),a
 .h:     ld de,TP_HD             ; next header (other blocks are passed)
         ld bc,17
         ld hl,(TP_FD)
         call sc_read
         jr c,.h
+        ld a,(TP_ONE)
+        or a
+        call z,tpprg            ; whole tape: programs too
         ld hl,(TP_HD+15)
         ld de,'R'+256*'U'
         or a
@@ -511,7 +526,15 @@ tpget:  xor a
         ld a,(TP_HD+13)
         cp 'A'
         jr nz,.f
-        ld hl,TP_LB             ; an archive: is it the one?
+        ld a,(TP_ONE)           ; whole tape: every archive, by name
+        or a
+        jr nz,.lb
+        call tpcas
+        ld a,':'
+        call putc
+        call crlf
+        jr .in
+.lb:    ld hl,TP_LB             ; an archive: is it the one?
         ld de,TP_HD+1
         ld b,10
         ld a,(hl)
@@ -528,6 +551,9 @@ tpget:  xor a
         jr .h
 .f:     cp 'E'
         jr nz,.m
+        ld a,(TP_ONE)           ; whole tape: on to the next one
+        or a
+        jr z,.go
         ld a,(TP_IN)
         or a
         jp nz,exit0
@@ -561,6 +587,32 @@ tpget:  xor a
         jp .h
 .x:     call tpext
         jp .h
+
+; tpprg: a program's header (CODE, p2 "SS", NC) -> /dev/cassette/NAME
+tpprg:  ld hl,(TP_HD+15)
+        ld de,'S'+256*'S'
+        sbc hl,de
+        ret nz
+        ld a,(TP_HD)
+        cp 3
+        ret nz
+        call tpcas
+        jp crlf
+
+; tpcas: /dev/cassette/NAME, the name in the header in TP_HD
+tpcas:  ld hl,s_cas
+        call puts
+        ld a,'/'
+        call putc
+        ld hl,TP_HD+1
+        ld b,10
+.c:     ld a,(hl)
+        cp '!'
+        ret c                   ; the name ends at a space
+        call putc
+        inc hl
+        djnz .c
+        ret
 
 ; tpnext: next data block of the member -> TP_B, BC = its length,
 ;   TP_W = its end

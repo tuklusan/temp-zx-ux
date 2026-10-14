@@ -987,6 +987,126 @@ def border_kept(s):
     want('typing at the shell', 0, 0x00)
 
 
+def mixed_tape(s):
+    """a tar set made on ZX-UX between two programs, the system tape's
+    BASIC and CODE headers, and two blocks that are not headers to list:
+    a header with a bad parity byte, and a 17-byte data block"""
+    import rtap
+    s.sh('mkdir /tmp/t')
+    s.sh('echo one > /tmp/t/one')
+    s.sh('tar cf /dev/cassette/demo /tmp/t', frames=60000)
+    arch = zxrun.decode_mic(s.zx.tr.mic)
+    if len(arch) != 6:
+        raise Fail('tar wrote %d blocks, want 6' % len(arch))
+    prog = ssx_tape('ssxargs')
+    data = open(os.path.join(ROOT, 'build', 'ZX-UX.tap'), 'rb').read()
+    sysb, p = [], 0
+    while p < len(data):
+        n = data[p] | data[p + 1] << 8
+        sysb.append(data[p + 2:p + 2 + n])
+        p += 2 + n
+    bad = bytearray(rtap.tap_block(0, bytes([3]) + b'badparity ' + bytes(4) + b'SS'))
+    bad[-1] ^= 0x55
+    fake = rtap.tap_block(0xFF, bytes([3]) + b'notahdr   ' + bytes(4) + b'SS')
+    zz9 = rtap.records(open(os.path.join(ROOT, 'build', 'ssx', 'ssxargs.ssx'), 'rb').read(), 'zz9')
+    return prog + arch + sysb[:4] + [bytes(bad), fake] + zz9
+
+
+def listing(s, cmd):
+    """the lines after the last prompt line that holds cmd (a held BREAK
+    can leave spaces before it: the ROM repeats the SPACE)"""
+    rows = s.rows()
+    hit = [i for i, l in enumerate(rows) if re.match(r'#\s+' + re.escape(cmd) + r'$', l.rstrip())]
+    if not hit:
+        raise Fail('%r not on the screen:\n%s' % (cmd, s.screen()))
+    return [l.rstrip() for l in rows[hit[-1] + 1:] if l.strip() and l.strip() != '#']
+
+
+def list_until(s, cmd, last, frames=80000):
+    for _ in range(frames // 50):
+        got = listing(s, cmd)
+        if got and got[-1] == last:
+            s.zx.run(100)
+            return listing(s, cmd)
+        s.zx.run(50)
+    raise Fail('%s: %r not listed:\n%s' % (cmd, last, s.screen()))
+
+
+@test
+def tap_t_whole_tape(s):
+    """tap t (tar t without a name) lists the whole tape - each program
+    as /dev/cassette/NAME, each tar set as /dev/cassette/LABEL: and its
+    members - and skips everything else, loading and running nothing,
+    until BREAK (held as a user would: the ROM loader waits about a
+    second after an edge without looking at BREAK)"""
+    s.login()
+    tape = mixed_tape(s)
+    free = df_free(s)
+    s.zx.type('tap t\n')
+    s.zx.tr.edges = zxrun.tape_pulses(tape, s.zx.sim.registers[25] + 3500000)
+    list_until(s, 'tap t', '/dev/cassette/zz9')
+    # (tap lists in the long form, as v1's did)
+    want = ['/dev/cassette/ssxargs', '/dev/cassette/demo:', 'd    30 /tmp/t',
+            '-     4 /tmp/t/one', '/dev/cassette/zz9']
+    got = listing(s, 'tap t')
+    if got != want:
+        raise Fail('tap t listed %s, want %s' % (got, want))
+    # the SDK's rtap --list says the same of these blocks (and more: the
+    # BASIC and CODE files, the blocks that are not records)
+    import rtap
+    host = [' '.join(l.split()) for l in rtap.list_blocks(tape)]
+    for item in (' '.join(g.split()) for g in got):
+        if not any(h == item or h.startswith('program ' + item + ' ')
+                   or h == 'archive ' + item for h in host):
+            raise Fail('rtap --list does not show %r:\n%s' % (item, '\n'.join(host)))
+    for word in ('badparity', 'notahdr', 'ZX-UX', 'unix', 'ssx args:'):
+        if word in '\n'.join(got):
+            raise Fail('%r listed' % word)
+    s.zx.tr.pressed = {'CS', 'SPACE'}           # hold BREAK 1.5 seconds
+    s.zx.run(75)
+    s.zx.tr.pressed = set()
+    s.wait_prompt(3000)
+    procs = [m.group(1) for m in (re.match(r'\s*\d+\s+\d+\s+\S\s+\S+\s+(\S+)$', l)
+                                  for l in s.sh('ps')) if m]
+    if procs != ['init', 'sh', 'ps']:
+        raise Fail('processes after BREAK: %s' % procs)
+    if df_free(s) != free:
+        raise Fail('memory changed: %d -> %d bytes free' % (free, df_free(s)))
+    # tar tf /dev/cassette: the same, members by path only
+    s.zx.type('tar tf /dev/cassette\n')
+    s.zx.tr.edges = zxrun.tape_pulses(tape, s.zx.sim.registers[25] + 3500000)
+    list_until(s, 'tar tf /dev/cassette', '/dev/cassette/zz9')
+    want = ['/dev/cassette/ssxargs', '/dev/cassette/demo:', '/tmp/t', '/tmp/t/one',
+            '/dev/cassette/zz9']
+    got = listing(s, 'tar tf /dev/cassette')
+    if got != want:
+        raise Fail('tar tf /dev/cassette listed %s, want %s' % (got, want))
+    s.zx.tr.pressed = {'CS', 'SPACE'}
+    s.zx.run(75)
+    s.zx.tr.pressed = set()
+    s.wait_prompt(3000)
+
+
+@test
+def tar_t_named(s):
+    """with an archive name, t lists that archive only - no programs, no
+    other headers - and ends by itself at the archive's end; x without a
+    name still takes the first archive"""
+    s.login()
+    tape = mixed_tape(s)
+    s.zx.type('tar tf /dev/cassette/demo\n')
+    s.zx.tr.edges = zxrun.tape_pulses(tape, s.zx.sim.registers[25] + 3500000)
+    s.wait_prompt(80000)
+    got = listing(s, 'tar tf /dev/cassette/demo')
+    if got != ['/tmp/t', '/tmp/t/one']:
+        raise Fail('tar tf /dev/cassette/demo listed %s' % got)
+    s.sh('rm /tmp/t/one')
+    s.zx.type('tap x\n')
+    s.zx.tr.edges = zxrun.tape_pulses(tape, s.zx.sim.registers[25] + 3500000)
+    s.wait_prompt(80000)
+    s.expect('cat /tmp/t/one', 'one')
+
+
 @test
 def boot_figures(s):
     """line 3 of the boot banner: the kernel's size is the resident

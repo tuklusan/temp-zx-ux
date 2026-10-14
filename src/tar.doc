@@ -24,7 +24,8 @@ OPTIONS
     v   Print each file's kind, size, and path.
     f   Select the cassette name. Use at most ten characters.
 
-    Use /dev/cassette without a name to read the next tape set.
+    Use /dev/cassette without a name to read the next tape set,
+    except that t (and tap t) then lists the whole tape: hold BREAK.
     Restoring a file replaces an older file of the same name.
     tar also makes any missing parent folders.
     If a file will not fit in memory, tar removes the partial file.
