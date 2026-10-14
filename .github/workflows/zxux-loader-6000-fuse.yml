@@ -152,6 +152,11 @@ jobs:
           continue
           DBG
 
+          # DIAGNOSTIC CONTROL ONLY: previously independently proven byte-exact
+          # TZX, to distinguish tape-media changes from the CI harness.
+          git show 59cc30152e5548ea64cd90f86a0e6726c10d4bae:experiments/zx-ux-loader-6000-fuse/output/zx-ux-new-loader-test.tzx >"$d/baseline-verified-control.tzx"
+          echo "4c548d0c355fe4912dfb0da0a1fa85b450bddd9393883c885166e2246b02cb12  $d/baseline-verified-control.tzx" | sha256sum -c
+          echo "CONTROL_MODE=previously_verified_tzx_only" > "$d/control-mode.txt"
           cmd="$(cat "$d/debugger.txt")"
           # A small percentage of cloud SDL initializations never map a
           # window. Capture X11 state and retry the emulator, not the tape.
@@ -160,7 +165,7 @@ jobs:
           for attempt in 1 2 3; do
             echo "launch_attempt=$attempt at $(date -u +%FT%TZ)" >> "$d/fuse-launch.log"
             SDL_VIDEODRIVER=x11 SDL_AUDIODRIVER=dummy stdbuf -o0 -e0 fuse-sdl --machine 48 --rom-48 /tmp/zx-spectrum-roms/usr/share/spectrum-roms/48.rom \
-              --tape "$d/zx-ux-new-loader-test.tzx" \
+              --tape "$d/baseline-verified-control.tzx" \
               --no-auto-load --no-traps --no-fastload --no-accelerate-loader --no-sound \
               --no-confirm-actions --debugger-command "$cmd" >"$d/fuse.log" 2>&1 &
             fuse_pid=$!
@@ -318,5 +323,10 @@ jobs:
           set -euo pipefail
           d=experiments/zx-ux-loader-6000-fuse/output
           cat "$d/fuse-result.txt"
-          test "$(cat "$d/fuse-result.txt")" = "ENTRY_6000"
+          # A passing CONTROL still intentionally fails this revision's CI.
+          # A new TZX requires its own, separate runtime proof.
+          if [ "$(cat "$d/fuse-result.txt")" = "ENTRY_6000" ]; then
+            echo "CONTROL_BASELINE_VERIFIED; experimental TZX not yet proven"
+          fi
+          exit 1
           grep -A1 '^0x3939e70$' "$d/fuse.log" | grep -qx '0x6000'
