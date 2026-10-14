@@ -229,6 +229,6 @@
     }
   ],
   "tzx_bytes": 26520,
-  "tzx_sha256": "fe4597a49c336f7b96549b51fd0efbc2bf12fbd864ba7c716ccfddbd35193b7b",
+  "tzx_sha256": "d9dff423d4b378e3318c9ccea71f909168fc6d0512ec10844f37108301d944fe",
   "beep": "one ROM 0x03B5 BEEPER call, DE=250 HL=407, then 25x 50Hz HALT"
 }
