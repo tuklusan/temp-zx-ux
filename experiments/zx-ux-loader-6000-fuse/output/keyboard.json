@@ -1,10 +1,11 @@
 {
   "result": "SENT",
-  "window": "0x400008",
+  "window": "0x200008",
   "spectrum_keys": [
     "J",
     "Ctrl+P",
     "Ctrl+P",
+    "F8 Play",
     "Enter"
   ],
   "display": ":99"
