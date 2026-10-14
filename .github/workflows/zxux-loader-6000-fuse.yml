@@ -361,5 +361,4 @@ jobs:
           cat "$d/fuse-result.txt"
           test "$(cat "$d/fuse-result.txt")" = "ENTRY_6000"
           grep -A1 '^0x3939e70$' "$d/fuse.log" | grep -qx '0x6000'
-          grep -q '^0x18152ad
- "$d/fuse.log"
+          grep -q '^0x18152ad$' "$d/fuse.log"
