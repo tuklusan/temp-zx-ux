@@ -1,10 +1,13 @@
 name: ZX-UX Compact TZX Fuse Verification
 
+# Historical independent verifier. Manual-only; the 6000 loader CI owns push verification.
 on:
-  push:
-    branches: [main]
-    paths:
-      - .github/workflows/zxux-compact-fuse-verify.yml
+  workflow_dispatch:
+
+# Shared concurrency across every workflow in this project.
+concurrency:
+  group: zx-ux-project-main
+  cancel-in-progress: false
 
 env:
   DISPLAY: ":99"

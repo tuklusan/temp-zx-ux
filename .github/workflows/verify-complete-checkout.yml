@@ -1,9 +1,11 @@
 name: Verify complete ZX-UX checkout
+# Manual integrity check, so no duplicate runners are queued for code pushes.
 on:
-  push:
-    paths:
-      - .github/workflows/verify-complete-checkout.yml
   workflow_dispatch:
+concurrency:
+  group: zx-ux-project-main
+  cancel-in-progress: false
+
 permissions:
   contents: read
 jobs:
