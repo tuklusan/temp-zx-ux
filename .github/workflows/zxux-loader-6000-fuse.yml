@@ -134,6 +134,9 @@ jobs:
           print z80:pc
           print spectrum:frames
           print 70707070
+          print [0xc189]
+          print [0xc18c]
+          print [0xc18d]
           print [0xffef]
           print [0xfff0]
           print [0xfff1]
@@ -229,7 +232,7 @@ jobs:
           # Snapshot physical row 23 during the ROM beep and silent dwell.
           # Trigger from the debugger's unique final CALL 0x03B5 opcode marker.
           (
-            for shot in $(seq 1 2400); do
+            for shot in $(seq 1 4500); do
               if grep -qx '0x18152ad' "$d/fuse.log"; then
                 timeout -k 1s 4s xwd -root -silent -out "$d/last-line.xwd" || true
                 if test -s "$d/last-line.xwd"; then
@@ -241,6 +244,14 @@ jobs:
             done
           ) &
           last_line_capture_pid=$!
+          (
+            sleep 165
+            timeout -k 1s 5s xwd -root -silent -out "$d/progress-late.xwd" || true
+            if test -s "$d/progress-late.xwd"; then
+              timeout -k 1s 5s convert "$d/progress-late.xwd" "$d/progress-late.png" || true
+            fi
+          ) &
+          progress_late_pid=$!
           ps -ef | grep -E 'fuse|Xvfb' >> "$d/diagnostics.txt" || true
           # Stop on the actual destination PC, not merely a printed number.
           # Force a flush on exit before examining the debugger output.
@@ -290,6 +301,7 @@ jobs:
           fi
 
           kill "$last_line_capture_pid" 2>/dev/null || true
+          kill "$progress_late_pid" 2>/dev/null || true
           kill "$progress_capture_pid" 2>/dev/null || true
           kill "$tape_starter_pid" 2>/dev/null || true
           kill -KILL "$fuse_pid" 2>/dev/null || true
@@ -319,6 +331,7 @@ jobs:
           if test -s "$d/fuse-final.png"; then sha256sum "$d/fuse-final.png" >> "$d/SHA256SUMS"; fi
           if test -s "$d/progress-mid.png"; then sha256sum "$d/progress-mid.png" >> "$d/SHA256SUMS"; fi
           if test -s "$d/last-line.png"; then sha256sum "$d/last-line.png" >> "$d/SHA256SUMS"; fi
+          if test -s "$d/progress-late.png"; then sha256sum "$d/progress-late.png" >> "$d/SHA256SUMS"; fi
 
       - name: Persist diagnostic output
         if: always()
