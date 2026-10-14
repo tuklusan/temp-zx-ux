@@ -153,12 +153,34 @@ jobs:
           DBG
 
           cmd="$(cat "$d/debugger.txt")"
-          SDL_VIDEODRIVER=x11 SDL_AUDIODRIVER=dummy stdbuf -o0 -e0 fuse-sdl --machine 48 --rom-48 /tmp/zx-spectrum-roms/usr/share/spectrum-roms/48.rom \
-            --tape "$d/zx-ux-new-loader-test.tzx" \
-            --no-auto-load --no-traps --no-fastload --no-accelerate-loader --no-sound \
-            --no-confirm-actions --debugger-command "$cmd" \
-            >"$d/fuse.log" 2>&1 &
-          fuse_pid=$!
+          # A small percentage of cloud SDL initializations never map a
+          # window. Capture X11 state and retry the emulator, not the tape.
+          : > "$d/fuse-launch.log"
+          fuse_window=""
+          for attempt in 1 2 3; do
+            echo "launch_attempt=$attempt at $(date -u +%FT%TZ)" >> "$d/fuse-launch.log"
+            SDL_VIDEODRIVER=x11 SDL_AUDIODRIVER=dummy stdbuf -o0 -e0 fuse-sdl --machine 48 --rom-48 /tmp/zx-spectrum-roms/usr/share/spectrum-roms/48.rom \
+              --tape "$d/zx-ux-new-loader-test.tzx" \
+              --no-auto-load --no-traps --no-fastload --no-accelerate-loader --no-sound \
+              --no-confirm-actions --debugger-command "$cmd" >"$d/fuse.log" 2>&1 &
+            fuse_pid=$!
+            for j in $(seq 1 80); do
+              fuse_window="$(xdotool search --onlyvisible --class fuse 2>/dev/null | head -n1 || true)"
+              if [ -n "$fuse_window" ]; then break; fi
+              if ! kill -0 "$fuse_pid" 2>/dev/null; then break; fi
+              sleep 0.2
+            done
+            if [ -n "$fuse_window" ]; then
+              echo "window_ready_attempt=$attempt id=$fuse_window" >> "$d/fuse-launch.log"
+              break
+            fi
+            echo "window_failed_attempt=$attempt pid=$fuse_pid" >> "$d/fuse-launch.log"
+            ps -o pid,ppid,stat,%cpu,%mem,etime,args -p "$fuse_pid" >> "$d/fuse-launch.log" 2>&1 || true
+            xwininfo -root -tree >> "$d/fuse-launch.log" 2>&1 || true
+            kill -KILL "$fuse_pid" 2>/dev/null || true
+            sleep 2
+          done
+          echo "window_after_retries=$fuse_window" >> "$d/fuse-launch.log"
           echo "Fuse PID=$fuse_pid Xvfb PID=$xvfb_pid WM PID=$wm_pid" > "$d/diagnostics.txt"
           # Fuse manual: with ROM tape traps disabled, LOAD "" also needs F8 Play.
           # The SDL/XTEST helper sends exactly that, after typing the BASIC command.
