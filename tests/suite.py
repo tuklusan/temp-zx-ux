@@ -306,31 +306,55 @@ def idle_pack(s):
 
 @test
 def pack_under_pressure(s):
-    """an unpack that runs out of blocks packs other files meanwhile"""
+    """an unpack that runs out of room packs other files meanwhile.
+
+    The arena is brought to a state where the doc's 1293 raw bytes do not
+    fit but packing one closed 1293-byte copy can still start (zpack's
+    workspace halves down to 646 bytes) and gives enough back.  Copies
+    and packs move the free space in measured steps (a copy costs about
+    1297 bytes, packing one gives about 709 back, so the two together
+    move it by about 588, less than the window's width), so the window
+    is reached whatever the system's size; the first version filled
+    greedily and passed or failed with the resident size (a change of a
+    few dozen bytes could flip it)."""
+    LOW, HIGH = 660, 1290
     s.login()
-    s.sh('cp /usr/doc/zxpack /tmp/a')          # raw 11 blocks, packable
+    s.sh('cp /usr/doc/zxpack /tmp/a')          # raw 1293 bytes, packable
     s.expect('zxpack /usr/doc/zxpack', '1293 -> 584 bytes', frames=60000)
     sum_a = s.sh('sum /tmp/a', frames=20000)
-    def free():
-        out = s.sh('df')
-        return int(re.search(r'(\d+) bytes free', '\n'.join(out)).group(1))
-    # fill the arena until the 1293 raw bytes of the doc no longer fit
-    n = 0
-    while free() > 1300 and n < 5:
-        s.sh('cp /tmp/a /tmp/f%d' % n, frames=20000)
-        n += 1
-    if free() > 1300:
-        s.sh('cp /usr/doc/tar /tmp/g', frames=20000)
+    copies, raw = [], []
+
+    def copy():
+        name = '/tmp/f%d' % len(copies)
+        before = df_free(s)
+        s.sh('cp /tmp/a ' + name, frames=20000)
+        copies.append(name)
+        raw.append(name)
+        return before - df_free(s)
+    step = copy()                              # what a copy costs
+    while df_free(s) - step > HIGH:
+        copy()
+    while df_free(s) > HIGH:                   # pack one, copy one
+        if not raw or len(copies) > 12:
+            raise Fail('cannot reach %d bytes free:\n%s' % (HIGH, s.screen()))
+        s.sh('zxpack ' + raw.pop(0), frames=60000)
+        copy()
+    free = df_free(s)
+    if not LOW <= free <= HIGH:
+        raise Fail('could not bring the arena to %d..%d bytes free: %d' % (LOW, HIGH, free))
+
+    def packed():
+        return len(re.findall(r'^z', '\n'.join(s.sh('ls -l /tmp')), re.M))
+    before = packed()
     s.expect('wc /usr/doc/zxpack', re.compile(r'38 +213 +1293 /usr/doc/zxpack'),
              frames=200000)
-    s.sh('rm /tmp/g')
     s.expect('ls -l /usr/doc/zxpack', re.compile(r's.rw.. 1 +1293 '))
-    # the blocks came from packing closed files during the unpack
-    s.expect('ls -l /tmp', re.compile(r'^z', re.M))
+    # the room came from packing closed files during the unpack
+    if packed() <= before:
+        raise Fail('the unpack (%d bytes free) packed no other file' % free)
     s.expect('sum /tmp/a', *sum_a, frames=60000)
-    for i in range(n):
-        s.expect('cmp /tmp/a /tmp/f%d' % i, absent=('differ', 'EOF'),
-                 frames=60000)
+    for f in copies:
+        s.expect('cmp /tmp/a ' + f, absent=('differ', 'EOF'), frames=60000)
 
 
 @test
@@ -809,7 +833,9 @@ def vi_big_file(s):
     s.zx.type(':q')
     s.key('ENTER')
     s.wait_prompt(3000)
-    s.expect('ls -l /tmp/big', ' 3275 ')
+    size = sum(os.path.getsize(os.path.join(ROOT, 'src', d + '.doc'))
+               for d in ('zxpack', 'tar', 'more'))
+    s.expect('ls -l /tmp/big', ' %d ' % size)
     s.expect('sum /tmp/big', *ref, frames=60000)
 
 
@@ -846,6 +872,37 @@ def beep_pitch(s):
     if not (46 <= n1 <= 56 and 98 <= n2 <= 110):
         raise Fail('half periods: %d of C4, %d of C5; want about 51 and 104' % (n1, n2))
     s.wait_prompt(3000)
+
+
+@test
+def boot_figures(s):
+    """line 3 of the boot banner: the kernel's size is the resident
+    kernel (kend - 6000h, the 8K limit's measure), the free figure is
+    what the kernel itself counts free in the arena (afreeb) when it
+    prints the banner - before init, getty and the shell take their
+    share, so df after login shows less - and procs is NPROC"""
+    from skoolkit.simutils import H, L, PC, SP, T
+    zx = s.zx
+    r = zx.sim.registers
+    zx.sim.trace(r[PC], ksym('kinit'), 0, r[T] + zxrun.FRAME * 600, 1,
+                 None, None, None, None, None)
+    if r[PC] != ksym('kinit'):
+        raise Fail('the boot did not reach kinit')
+    line = [l for l in zx.screen().splitlines() if 'kernel' in l]
+    m = re.search(r'kernel (\d+)B free=(\d+)B procs=(\d+) ok', line[0] if line else '')
+    if not m:
+        raise Fail('no boot figures:\n' + zx.screen())
+    sp = (r[SP] - 2) & 0xFFFF                     # call afreeb, return to kinit
+    zx.mem[sp], zx.mem[sp + 1] = ksym('kinit') & 255, ksym('kinit') >> 8
+    r[SP] = sp
+    zx.sim.trace(ksym('afreeb'), ksym('kinit'), 0, r[T] + 1000000, 0,
+                 None, None, None, None, None)
+    free = r[H] * 256 + r[L]
+    want = (ksym('kend') - 0x6000, free, ksym('NPROC'))
+    got = tuple(int(x) for x in m.groups())
+    if got != want:
+        raise Fail('banner says kernel %d, free %d, procs %d; the kernel has %d, %d, %d'
+                   % (got + want))
 
 
 TESTS_BY_NAME = {f.__name__: f for f in TESTS}
