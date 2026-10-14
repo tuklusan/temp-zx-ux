@@ -1,14 +1,14 @@
-Fuse PID=4015 Xvfb PID=3973 WM PID=3977
-runner      3973    3972  1 13:30 ?        00:00:00 Xvfb :99 -screen 0 1280x900x24
-runner      4015    3972  0 13:30 ?        00:00:00 fuse-sdl --machine 48 --rom-48 /tmp/zx-spectrum-roms/usr/share/spectrum-roms/48.rom --tape experiments/zx-ux-loader-6000-fuse/output/zx-ux-new-loader-test.tzx --auto-load --no-fastload --no-accelerate-loader --no-sound --no-confirm-actions
-runner      4019    4017  0 13:30 ?        00:00:00 python3 experiments/zx-ux-loader-6000-fuse/input_xtest.py --display :99 --log experiments/zx-ux-loader-6000-fuse/output/keyboard.json
-runner      4020    3972  0 13:30 ?        00:00:00 grep -E fuse|Xvfb
-monitor_started=2026-10-14T13:30:27Z
+Fuse PID=3758 Xvfb PID=3731 WM PID=3735
+runner      3731    3730  1 13:34 ?        00:00:00 Xvfb :99 -screen 0 1280x900x24
+runner      3758    3730  0 13:34 ?        00:00:00 fuse-sdl --machine 48 --rom-48 /tmp/zx-spectrum-roms/usr/share/spectrum-roms/48.rom --tape experiments/zx-ux-loader-6000-fuse/output/zx-ux-new-loader-test.tzx --auto-load --no-fastload --no-accelerate-loader --no-sound --no-confirm-actions
+runner      3762    3760  0 13:34 ?        00:00:00 python3 experiments/zx-ux-loader-6000-fuse/input_xtest.py --display :99 --log experiments/zx-ux-loader-6000-fuse/output/keyboard.json --output-dir experiments/zx-ux-loader-6000-fuse/output
+runner      3763    3730  0 13:34 ?        00:00:00 grep -E fuse|Xvfb
+monitor_started=2026-10-14T13:34:18Z
+poll=10 utc=2026-10-14T13:34:27Z bytes=506
 xtest_input_sent=YES
-probe_menu_key=F1
 xtest_probe=COMPLETE
-monitor_ended=2026-10-14T13:30:36Z result=PROBE_ONLY_NO_DEBUGGER
-cleanup_complete=2026-10-14T13:30:36Z
+monitor_ended=2026-10-14T13:34:36Z result=PROBE_ONLY_NO_DEBUGGER
+cleanup_complete=2026-10-14T13:34:37Z
 Result=PROBE_ONLY_NO_DEBUGGER
 {
   "result": "SENT",
