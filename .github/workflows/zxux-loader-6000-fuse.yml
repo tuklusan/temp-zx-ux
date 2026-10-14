@@ -1,0 +1,132 @@
+name: ZX-UX 6000 Loader Fuse Test
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/zxux-loader-6000-fuse.yml
+      - experiments/zx-ux-loader-6000-fuse/**
+
+permissions:
+  contents: write
+
+env:
+  DISPLAY: ":99"
+
+jobs:
+  fuse-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Verify exact source TAP
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd experiments/zx-ux-loader-6000-fuse
+          test "$(sha256sum ZX-UX.tap | awk '{print $1}')" = "4f18817a198c7e6ad3a44b12503c112c204968bae207214bc74c4384dedb6fb9"
+
+      - name: Install Fuse
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y             fuse-emulator-gtk=1.6.0+dfsg1-2build3             libspectrum8=1.5.0-4build2             xvfb=2:21.1.12-1ubuntu1.6             x11-apps imagemagick
+          fuse --version
+
+      - name: Build corrected TZX
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 experiments/zx-ux-loader-6000-fuse/build.py
+          test -s experiments/zx-ux-loader-6000-fuse/output/zx-ux-new-loader-test.tzx
+          unzip -t experiments/zx-ux-loader-6000-fuse/output/zx-ux-new-loader-test.tzx.zip
+
+      - name: Real-speed Fuse proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          d=experiments/zx-ux-loader-6000-fuse/output
+
+          Xvfb :99 -screen 0 1280x900x24 >"$d/xvfb.log" 2>&1 &
+          xvfb_pid=$!
+          sleep 1
+
+          cat >"$d/debugger.txt" <<'DBG'
+          breakpoint 0x6000
+          breakpoint time 0 if spectrum:frames > 8000
+          commands 1
+          print 60006000
+          print z80:pc
+          print z80:sp
+          print [0x6000]
+          print [0x6001]
+          print [0x6002]
+          end
+          commands 2
+          print 90909090
+          print z80:pc
+          print z80:sp
+          end
+          continue
+          DBG
+
+          cmd="$(cat "$d/debugger.txt")"
+          stdbuf -oL -eL fuse --machine 48             --tape "$d/zx-ux-new-loader-test.tzx"             --auto-load --no-fastload --no-accelerate-loader --no-traps             --no-confirm-actions --debugger-command "$cmd"             >"$d/fuse.log" 2>&1 &
+          fuse_pid=$!
+
+          result=""
+          for i in $(seq 1 190); do
+            if grep -q "60006000" "$d/fuse.log"; then
+              result="ENTRY_6000"
+              break
+            fi
+            if grep -q "90909090" "$d/fuse.log"; then
+              result="TIMEOUT"
+              break
+            fi
+            if ! kill -0 "$fuse_pid" 2>/dev/null; then
+              result="FUSE_EXITED"
+              break
+            fi
+            sleep 1
+          done
+
+          echo "$result" | tee "$d/fuse-result.txt"
+          cat "$d/fuse.log" || true
+
+          xwd -root -silent -out "$d/fuse-final.xwd" || true
+          convert "$d/fuse-final.xwd" "$d/fuse-final.png" || true
+
+          kill "$fuse_pid" 2>/dev/null || true
+          kill "$xvfb_pid" 2>/dev/null || true
+
+          test "$result" = "ENTRY_6000"
+          grep -q "60006000" "$d/fuse.log"
+
+      - name: Record hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          d=experiments/zx-ux-loader-6000-fuse/output
+          sha256sum             "$d/zx-ux-new-loader-test.tzx"             "$d/zx-ux-new-loader-test.tzx.zip"             "$d/fuse.log"             "$d/fuse-final.png" > "$d/SHA256SUMS"
+
+      - name: Persist verified output
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add experiments/zx-ux-loader-6000-fuse/output
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "ZX-UX: persist Fuse-verified 6000 loader test"
+          git pull --rebase origin main
+          git push origin main
