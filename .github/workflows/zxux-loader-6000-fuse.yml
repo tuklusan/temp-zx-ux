@@ -167,7 +167,7 @@ jobs:
           SDL_VIDEODRIVER=x11 SDL_AUDIODRIVER=dummy stdbuf -o0 -e0 fuse-sdl --machine 48 --rom-48 /tmp/zx-spectrum-roms/usr/share/spectrum-roms/48.rom \
             --tape "$d/zx-ux-new-loader-test.tzx" \
             --auto-load --no-fastload --no-accelerate-loader --no-sound \
-            --no-confirm-actions --debugger-command "$cmd" \
+            --no-confirm-actions \
             >"$d/fuse.log" 2>&1 &
           fuse_pid=$!
           echo "Fuse PID=$fuse_pid Xvfb PID=$xvfb_pid WM PID=$wm_pid" > "$d/diagnostics.txt"
@@ -188,7 +188,8 @@ jobs:
           # Force a flush on exit before examining the debugger output.
           result="TIMEOUT"
           echo "monitor_started=$(date -u +%FT%TZ)" >> "$d/diagnostics.txt"
-          for i in $(seq 1 225); do
+          # Control-only: no debugger, inspect screen after 25 seconds.
+          for i in $(seq 1 25); do
             if grep -A1 '^0x3939e70$' "$d/fuse.log" | grep -qx '0x6000'; then
               result="ENTRY_6000"
               break
@@ -213,6 +214,7 @@ jobs:
           done
 
           # Persist result before optional screenshots or process cleanup.
+          result="PROBE_ONLY_NO_DEBUGGER"
           echo "$result" | tee "$d/fuse-result.txt"
           echo "monitor_ended=$(date -u +%FT%TZ) result=$result" >> "$d/diagnostics.txt"
           timeout -k 2s 5s xwd -root -silent -out "$d/fuse-final.xwd" || echo "screenshot_xwd_failed" >> "$d/diagnostics.txt"
