@@ -1,7 +1,7 @@
-launch_attempt=1 at 2026-10-14T17:16:14Z
-window_failed_attempt=1 pid=3707
+launch_attempt=1 at 2026-10-14T17:48:07Z
+window_failed_attempt=1 pid=3754
     PID    PPID STAT %CPU %MEM     ELAPSED COMMAND
-   3707    3658 SLl   0.0  0.1       00:16 fuse-sdl --machine 48 --rom-48 /tmp/zx-spectrum-roms/usr/share/spectrum-roms/48.rom --tape experiments/zx-ux-loader-6000-fuse/output/baseline-verified-control.tzx --no-auto-load --no-traps --no-fastload --no-accelerate-loader --no-sound --no-confirm-actions --debugger-command breakpoint 0x6000 breakpoint time 0 if spectrum:frames > 10500 commands 1 print 60006000 print z80:pc print spectrum:frames print [0x6000] print [0x6001] print [0x6002] print [0x6003] print [0x6004] print [0x6005] print [0x6006] print [0x6007] print [0x6008] print [0x6009] print [0x600a] print [0x600b] print [0x600c] print [0x600d] print [0x600e] print [0x600f] continue end commands 2 print 90909090 print z80:pc print spectrum:frames print 70707070 print [0xffef] print [0xfff0] print [0xfff1] print [0xfff2] print [0xfff3] print [0xfff4] print [0xfff5] print [0xfff6] print [0xfff7] print [0xfff8] print [0xfff9] print [0xfffa] print [0xfffb] print [0xfffc] print [0xfffd] print [0xfffe] print [0xffff] end continue
+   3754    3728 SLl   0.1  0.1       00:16 fuse-sdl --machine 48 --rom-48 /tmp/zx-spectrum-roms/usr/share/spectrum-roms/48.rom --tape experiments/zx-ux-loader-6000-fuse/output/zx-ux-new-loader-test.tzx --no-auto-load --no-traps --no-fastload --no-accelerate-loader --no-sound --no-confirm-actions --debugger-command breakpoint 0x6000 breakpoint time 0 if spectrum:frames > 10500 commands 1 print 60006000 print z80:pc print spectrum:frames print [0x6000] print [0x6001] print [0x6002] print [0x6003] print [0x6004] print [0x6005] print [0x6006] print [0x6007] print [0x6008] print [0x6009] print [0x600a] print [0x600b] print [0x600c] print [0x600d] print [0x600e] print [0x600f] continue end commands 2 print 90909090 print z80:pc print spectrum:frames print 70707070 print [0xffef] print [0xfff0] print [0xfff1] print [0xfff2] print [0xfff3] print [0xfff4] print [0xfff5] print [0xfff6] print [0xfff7] print [0xfff8] print [0xfff9] print [0xfffa] print [0xfffb] print [0xfffc] print [0xfffd] print [0xfffe] print [0xffff] end continue
 
 xwininfo: Window id: 0x21f (the root window) (has no name)
 
@@ -34,6 +34,6 @@ xwininfo: Window id: 0x21f (the root window) (has no name)
      0x200163 (has no name): ()  1x1+0+0  +0+0
      0x200170 (has no name): ()  1x1+0+0  +0+0
 
-launch_attempt=2 at 2026-10-14T17:16:32Z
+launch_attempt=2 at 2026-10-14T17:48:26Z
 window_ready_attempt=2 id=4194312
 window_after_retries=4194312
