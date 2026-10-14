@@ -14,11 +14,12 @@ ENTRY = 0x6000
 SEGMENTS = 24
 ZERO_T = 1140
 ONE_T = 2280
-PILOT_T = 400
-# ZQLoader requires >=200 valid leader edges. 220 left under 3 ms to
-# synchronize with the stream; 800 gives a ~69 ms acquisition margin
-# while keeping each 400-T-state leader well under 0.1 seconds.
-PILOT_EDGES = 800
+PILOT_T = 450
+# The upstream proven leader lasts about 200 ms at 500 T-state pulses.
+# Keep the requested approximately 400-T-state pulse, with 450 T and
+# 1,600 edges (~206 ms) for robust acquisition at the new data rate.
+# The payload bit timing remains exactly 1140/2280 T-states.
+PILOT_EDGES = 1600
 SYNC_T = 250
 SYNC2_T = 499
 MINISYNC_T = 501

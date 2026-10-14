@@ -23,8 +23,8 @@ fastloader worked, *not* for altering the 24,670-byte 0x6000 payload, requested
   seed file input/known-good-white-on-black-e003.tzx.b64 and
   src/print_hook.asm were not among the uploaded files. Bytewise timing
   comparison against that seed is not possible without the seed itself.
-- This experiment generates 0x19 generalized data using 400-T-state leader
-  pulses, now 800 edges (~91 ms), and bit pulses zero=1140, one=2280.
+- This experiment generates 0x19 generalized data using ~400-T-state leader
+  pulses, now 450 T x 1,600 edges (~206 ms), and bit pulses zero=1140, one=2280.
 - Pinned upstream zqloader/turboblock.h uses leader patterns 500/500 T-states
   with 200 ms default leader, plus sync 250/499 and minisync 501. The
   different current leader is a hypothesis to test, not a proven match.

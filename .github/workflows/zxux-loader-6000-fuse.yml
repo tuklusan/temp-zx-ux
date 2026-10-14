@@ -138,6 +138,26 @@ jobs:
           print z80:pc
           print z80:sp
           print spectrum:frames
+          # The ZQLoader upper-memory HEADER occupies 0xFFEF-0xFFFF.
+          # These bytes distinguish an unrecognized leader from corrupt data.
+          print 70707070
+          print [0xffef]
+          print [0xfff0]
+          print [0xfff1]
+          print [0xfff2]
+          print [0xfff3]
+          print [0xfff4]
+          print [0xfff5]
+          print [0xfff6]
+          print [0xfff7]
+          print [0xfff8]
+          print [0xfff9]
+          print [0xfffa]
+          print [0xfffb]
+          print [0xfffc]
+          print [0xfffd]
+          print [0xfffe]
+          print [0xffff]
           print [0x5ccb]
           print [0x5ccc]
           print [0x5ccd]
