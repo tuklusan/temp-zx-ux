@@ -61,10 +61,9 @@ jobs:
 
           cat >"$d/debugger.txt" <<'DBG'
           breakpoint 0x5ce7
-          breakpoint 0x0daf if z80:sp > 0xff00
+          breakpoint 0x0556
           breakpoint 0x6000
           breakpoint time 0 if spectrum:frames > 8000
-          breakpoint 0x0556
           commands 1
           print 11111111
           print z80:pc
@@ -72,7 +71,7 @@ jobs:
           continue
           end
           commands 2
-          print 22222222
+          print 55555555
           print z80:pc
           print z80:sp
           continue
@@ -97,11 +96,6 @@ jobs:
           print [0x600d]
           print [0x600e]
           print [0x600f]
-          end
-          commands 5
-          print 55555555
-          print z80:pc
-          continue
           end
           commands 4
           print 90909090
@@ -130,30 +124,30 @@ jobs:
           cmd="$(cat "$d/debugger.txt")"
           stdbuf -o0 -e0 fuse --machine 48 \
             --tape "$d/zx-ux-new-loader-test.tzx" \
-            --auto-load --no-fastload --no-accelerate-loader --no-traps --no-detect-loader --no-sound \
+            --no-auto-load --no-fastload --no-accelerate-loader --no-traps --no-detect-loader --no-sound \
             --no-confirm-actions --debugger-command "$cmd" \
             >"$d/fuse.log" 2>&1 &
           fuse_pid=$!
 
           echo "Fuse PID=$fuse_pid Xvfb PID=$xvfb_pid" > "$d/diagnostics.txt"
-          # ROM tape traps and heuristic loader detection are disabled.
-          # Start real-time playback only after LD_BYTES (0x0556) begins.
+          # With --no-auto-load, always explicitly type the real 48K
+          # BASIC command LOAD "" (J is the LOAD keyword key), then F8
+          # to play the attached TZX at true tape speed.
           (
-            for j in $(seq 1 160); do
-              if grep -A1 '^0x34fb5e3$' "$d/fuse.log" | grep -qx '0x556'; then
-                win="$(xdotool search --name 'Fuse' 2>/dev/null | head -n1 || true)"
-                if [ -n "$win" ]; then
-                  xdotool windowfocus "$win" || true
-                  xdotool key F8 || true
-                  echo "manual_tape_play=sent window=$win" >>"$d/diagnostics.txt"
-                else
-                  echo "manual_tape_play=no_window" >>"$d/diagnostics.txt"
-                fi
-                exit 0
-              fi
-              sleep 0.1
-            done
-            echo "manual_tape_play=no_ldbytes_marker" >>"$d/diagnostics.txt"
+            sleep 2
+            win="$(xdotool search --name 'Fuse' 2>/dev/null | head -n1 || true)"
+            if [ -z "$win" ]; then
+              echo "manual_tape_play=no_window" >>"$d/diagnostics.txt"
+            else
+              echo "manual_tape_play=window:$win" >>"$d/diagnostics.txt"
+              xdotool windowfocus "$win" || true
+              xdotool key --clearmodifiers j || true
+              sleep 0.2
+              xdotool key --clearmodifiers quotedbl quotedbl Return || true
+              sleep 0.3
+              xdotool key F8 || true
+              echo "manual_tape_play=typed_LOAD_and_F8" >>"$d/diagnostics.txt"
+            fi
           ) &
           tape_starter_pid=$!
           ps -ef | grep -E 'fuse|Xvfb' >> "$d/diagnostics.txt" || true
@@ -205,7 +199,7 @@ jobs:
 
           echo "$result" | tee "$d/fuse-result.txt"
           echo "Result=$result" >> "$d/diagnostics.txt"
-          grep -E '0x3939e70|0xa98ac7|0x153158e|0x34fb5e3|0x56b29a2|error|Error|Unknown' "$d/fuse.log" >> "$d/diagnostics.txt" || true
+          grep -E '0x3939e70|0xa98ac7|0x34fb5e3|0x56b29a2|error|Error|Unknown' "$d/fuse.log" >> "$d/diagnostics.txt" || true
           cat "$d/fuse.log" || true
 
       - name: Record hashes
