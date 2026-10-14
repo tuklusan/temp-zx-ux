@@ -1,0 +1,155 @@
+name: Regression
+# The whole ZX-UX regression, as the handover runs it, split across
+# parallel jobs: one job builds (kernel, library, the test snapshot, the
+# C48 tapes) and the others run the suites from its files at the same
+# time, the slow ones in shards (tools/ci_shard.py).
+#
+# A newer run on the same branch cancels the older one, so the queue never
+# holds two runs of one branch.  The runner label is an input: an
+# organization's larger runners (GitHub Team / Enterprise Cloud) are used
+# by giving their label; the default is GitHub's standard ubuntu-latest.
+# The window test uses Ubuntu's own Python 3 with python3-tk (Tk is
+# certain there) under Xvfb.
+on:
+  push:
+    paths:
+      - 'src/**'
+      - 'sdk/**'
+      - 'tests/**'
+      - 'tools/**'
+      - 'programs/**'
+      - '.github/workflows/regression.yml'
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: Runner label (e.g. an organization's larger runner)
+        default: ubuntu-latest
+        required: false
+permissions:
+  contents: read
+concurrency:
+  group: regression-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  PYTHONHASHSEED: '0'
+  SJASMPLUS_VERSION: v1.24.0
+  SKOOLKIT_VERSION: '10.1'
+jobs:
+  build:
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: sjasmplus (cached)
+        id: sjasm
+        uses: actions/cache@v4
+        with:
+          path: tools/bin/sjasmplus
+          key: sjasmplus-${{ env.SJASMPLUS_VERSION }}-${{ runner.os }}
+      - name: Build sjasmplus
+        if: steps.sjasm.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch "$SJASMPLUS_VERSION" --recurse-submodules --shallow-submodules https://github.com/z00m128/sjasmplus.git /tmp/sjasmplus
+          make -C /tmp/sjasmplus -j"$(nproc)"
+          mkdir -p tools/bin
+          cp /tmp/sjasmplus/sjasmplus tools/bin/sjasmplus
+      - run: python -m pip install "skoolkit==$SKOOLKIT_VERSION" pillow
+      - name: Build, and check the tracked build outputs are reproduced
+        run: |
+          tools/bin/sjasmplus --version | head -1
+          python3 tools/build.py tools/bin/sjasmplus
+          python3 sdk/lib/build.py
+          git status --short
+          git diff --exit-code
+      - name: Test snapshot, C48 tapes, multitask snapshot
+        run: |
+          sh tools/t.sh || true
+          test -f build/test.z80
+          python3 tools/mktapes.py
+          python3 tools/mtsnap.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: built
+          retention-days: 3
+          path: |
+            build/
+            src/unix.sym
+            src/unix.bin
+            src/ptab.inc
+            sdk/lib/libc48.ssa
+            tools/bin/sjasmplus
+
+  test:
+    needs: build
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {name: suite-1, run: 'python3 tests/suite.py -k "$(python3 tools/ci_shard.py suite 0 2)"'}
+          - {name: suite-2, run: 'python3 tests/suite.py -k "$(python3 tools/ci_shard.py suite 1 2)"'}
+          - {name: ssxrun, run: 'python3 tests/ssxrun.py'}
+          - {name: vm-native, run: 'python3 sdk/tests/vm_checks.py --native'}
+          - {name: vm-bytecode-1, run: 'python3 sdk/tests/vm_checks.py --bytecode --only "$(python3 tools/ci_shard.py runs 0 4)"'}
+          - {name: vm-bytecode-2, run: 'python3 sdk/tests/vm_checks.py --bytecode --only "$(python3 tools/ci_shard.py runs 1 4)"'}
+          - {name: vm-bytecode-3, run: 'python3 sdk/tests/vm_checks.py --bytecode --only "$(python3 tools/ci_shard.py runs 2 4)"'}
+          - {name: vm-bytecode-4, run: 'python3 sdk/tests/vm_checks.py --bytecode --only "$(python3 tools/ci_shard.py runs 3 4)"'}
+          - {name: c48-conformance, run: 'python3 tests/c48/conformance.py --report build/logs/c48-conformance.json'}
+          - {name: rvm-unit, run: 'python3 sdk/tests/test_rvm.py'}
+          - {name: rvm-corpus-native, run: 'python3 tests/rvm_corpus.py --native'}
+          - {name: rvm-corpus-bytecode-1, run: 'python3 tests/rvm_corpus.py --bytecode --only "$(python3 tools/ci_shard.py runs 0 4),seckern,ailmzx48"'}
+          - {name: rvm-corpus-bytecode-2, run: 'python3 tests/rvm_corpus.py --bytecode --only "$(python3 tools/ci_shard.py runs 1 4)"'}
+          - {name: rvm-corpus-bytecode-3, run: 'python3 tests/rvm_corpus.py --bytecode --only "$(python3 tools/ci_shard.py runs 2 4)"'}
+          - {name: rvm-corpus-bytecode-4, run: 'python3 tests/rvm_corpus.py --bytecode --only "$(python3 tools/ci_shard.py runs 3 4)"'}
+          - {name: rvm-machine-1, run: 'python3 tests/rvm_machine.py --only "$(python3 tools/ci_shard.py runs 0 4)"'}
+          - {name: rvm-machine-2, run: 'python3 tests/rvm_machine.py --only "$(python3 tools/ci_shard.py runs 1 4)"'}
+          - {name: rvm-machine-3, run: 'python3 tests/rvm_machine.py --only "$(python3 tools/ci_shard.py runs 2 4)"'}
+          - {name: rvm-machine-4, run: 'python3 tests/rvm_machine.py --only "$(python3 tools/ci_shard.py runs 3 4)"'}
+          - {name: rvm-window, gui: true, run: 'xvfb-run -a -s "-screen 0 1280x1024x24" /usr/bin/python3 tests/rvm_gui.py'}
+          - name: small
+            run: |
+              python3 tools/ci_shard.py --check runs 4
+              python3 tools/ci_shard.py --check suite 2
+              python3 sdk/tests/test_rtap.py
+              python3 sdk/tests/test_ras.py
+              python3 sdk/tests/test_z80fast.py
+              python3 tests/test_boot_v1.py
+              for t in tests/release_*.py; do echo "== $t"; PYTHONPATH=. python3 "$t"; done
+    name: ${{ matrix.name }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install "skoolkit==$SKOOLKIT_VERSION" pillow
+      - if: matrix.gui
+        run: sudo apt-get update -q && sudo apt-get install -y -q xvfb python3-tk
+      - uses: actions/download-artifact@v4
+        with:
+          name: built
+      - name: ${{ matrix.name }}
+        env:
+          ZXUX_RVM_CACHE: ${{ runner.temp }}/rvm-cache
+        run: |
+          chmod +x tools/bin/sjasmplus
+          mkdir -p build/logs
+          set -o pipefail
+          ( set -e; ${{ matrix.run }} ) 2>&1 | tee "build/logs/${{ matrix.name }}.log"
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: log-${{ matrix.name }}
+          retention-days: 14
+          path: build/logs/
+
+  result:
+    needs: test
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every job passed
+        run: test "${{ needs.test.result }}" = success
