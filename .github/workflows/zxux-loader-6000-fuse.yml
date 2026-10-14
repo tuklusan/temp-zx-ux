@@ -25,7 +25,7 @@ env:
 jobs:
   fuse-test:
     runs-on: ubuntu-24.04
-    timeout-minutes: 8
+    timeout-minutes: 7
 
     steps:
       - name: Checkout main
@@ -79,6 +79,8 @@ jobs:
             --tzx experiments/zx-ux-loader-6000-fuse/output/zx-ux-new-loader-test.tzx \
             --source experiments/zx-ux-loader-6000-fuse/ZX-UX.tap \
             --text-lines experiments/zx-ux-loader-6000-fuse/text-lines.txt
+          # Lock this release to the TZX that passed a real-speed PC=0x6000 proof.
+          test "$(sha256sum experiments/zx-ux-loader-6000-fuse/output/zx-ux-new-loader-test.tzx | cut -d' ' -f1)" = "e0880bc45b7fb575c887c50b95efd540e8f584448d9205d687de54bcb3414af5"
           test -s experiments/zx-ux-loader-6000-fuse/output/zx-ux-new-loader-test.tzx
           unzip -t experiments/zx-ux-loader-6000-fuse/output/zx-ux-new-loader-test.tzx.zip
 
@@ -103,7 +105,7 @@ jobs:
           # The first stop is either the required entry or the final watchdog.
           cat >"$d/debugger.txt" <<'DBG'
           breakpoint 0x6000
-          breakpoint time 0 if spectrum:frames > 14000
+          breakpoint time 0 if spectrum:frames > 10500
           commands 1
           print 60006000
           print z80:pc
@@ -162,7 +164,7 @@ jobs:
             echo "launch_attempt=$attempt at $(date -u +%FT%TZ)" >> "$d/fuse-launch.log"
             SDL_VIDEODRIVER=x11 SDL_AUDIODRIVER=dummy stdbuf -o0 -e0 fuse-sdl --machine 48 --rom-48 /tmp/zx-spectrum-roms/usr/share/spectrum-roms/48.rom \
               --tape "$d/zx-ux-new-loader-test.tzx" \
-              --no-auto-load --no-traps --no-detect-loader --no-fastload --no-accelerate-loader --no-sound \
+              --no-auto-load --no-traps --no-fastload --no-accelerate-loader --no-sound \
               --no-confirm-actions --debugger-command "$cmd" >"$d/fuse.log" 2>&1 &
             fuse_pid=$!
             for j in $(seq 1 80); do
@@ -183,10 +185,9 @@ jobs:
           done
           echo "window_after_retries=$fuse_window" >> "$d/fuse-launch.log"
           echo "Fuse PID=$fuse_pid Xvfb PID=$xvfb_pid WM PID=$wm_pid" > "$d/diagnostics.txt"
-          # Fuse loader detection is OFF. Type LOAD "" with XTEST but first
-          # start physical playback using F8 *before* Enter, while in BASIC.
-          # This avoids heuristic auto-stop during the fast loader and ensures
-          # there is no second F8 toggle to pause the emulated cassette.
+          # XTEST types LOAD ""; Fuse's ROM-loader detection auto-starts tape.
+          # F8 toggles playback and must not be pressed during active loading.
+          # No ROM/tape-event breakpoints: preserve real tape timing.
           # This runs every tape edge at actual emulated speed.
           # Reuse the proven SDL/XTEST keystrokes from tests/fuse_boot.py.
           # Spectrum double quote is CTRL+P, NOT a host quotedbl key.
@@ -194,7 +195,7 @@ jobs:
           rm -f "$d/keyboard.json" "$d/keyboard.log" "$d/after-input.xwd" "$d/after-input.png"
           (
             if python3 experiments/zx-ux-loader-6000-fuse/input_xtest.py \
-                  --display ":99" --log "$d/keyboard.json" --output-dir "$d" --manual-play-before-enter >"$d/keyboard.log" 2>&1; then
+                  --display ":99" --log "$d/keyboard.json" --output-dir "$d" >"$d/keyboard.log" 2>&1; then
               echo "xtest_input_sent=YES" >>"$d/diagnostics.txt"
             else
               echo "xtest_input_sent=NO" >>"$d/diagnostics.txt"
@@ -221,7 +222,7 @@ jobs:
           result="TIMEOUT"
           echo "monitor_started=$(date -u +%FT%TZ)" >> "$d/diagnostics.txt"
           # Real tape speed, with independent ROM, loader and 0x6000 breakpoints.
-          for i in $(seq 1 260); do
+          for i in $(seq 1 215); do
             if grep -A1 '^0x3939e70$' "$d/fuse.log" | grep -qx '0x6000'; then
               result="ENTRY_6000"
               break
@@ -253,16 +254,8 @@ jobs:
             sleep 1
           done
 
-          # Keep emulating after the actual 0x6000 transfer: the kernel
-          # needs time to initialize tty/getty before displaying "login:".
-          if [ "$result" = "ENTRY_6000" ]; then
-            sleep 5
-            timeout -k 2s 5s xwd -root -silent -out "$d/kernel-early.xwd" || true
-            if test -s "$d/kernel-early.xwd"; then
-              timeout -k 2s 5s convert "$d/kernel-early.xwd" "$d/kernel-early.png" || true
-            fi
-            sleep 25
-          fi
+          # Allow the 0x6000 payload to render its tty/login before final capture.
+          if [ "$result" = "ENTRY_6000" ]; then sleep 5; fi
           # Persist result before optional screenshots or process cleanup.
           echo "$result" | tee "$d/fuse-result.txt"
           echo "monitor_ended=$(date -u +%FT%TZ) result=$result" >> "$d/diagnostics.txt"
@@ -299,7 +292,6 @@ jobs:
           sha256sum "$d/zx-ux-new-loader-test.tzx" "$d/zx-ux-new-loader-test.tzx.zip" "$d/fuse.log" > "$d/SHA256SUMS"
           if test -s "$d/fuse-final.png"; then sha256sum "$d/fuse-final.png" >> "$d/SHA256SUMS"; fi
           if test -s "$d/progress-mid.png"; then sha256sum "$d/progress-mid.png" >> "$d/SHA256SUMS"; fi
-          if test -s "$d/kernel-early.png"; then sha256sum "$d/kernel-early.png" >> "$d/SHA256SUMS"; fi
 
       - name: Persist diagnostic output
         if: always()
