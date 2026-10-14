@@ -1,0 +1,46 @@
+breakpoint 0x5ce7
+breakpoint 0x5cfa
+breakpoint write 0x6000
+breakpoint 0x6000
+breakpoint time 0 if spectrum:frames > 8000
+commands 1
+print 11111111
+print z80:pc
+print z80:sp
+continue
+end
+commands 2
+print 22222222
+print z80:pc
+print z80:sp
+continue
+end
+commands 3
+print 33333333
+print z80:pc
+print z80:sp
+print [0x6000]
+continue
+end
+commands 4
+print 60006000
+print z80:pc
+print z80:sp
+print [0x6000]
+print [0x6001]
+print [0x6002]
+end
+commands 5
+print 90909090
+print z80:pc
+print z80:sp
+print [0x6000]
+print [0x6001]
+print [0x6002]
+print [0x6003]
+print [0x6004]
+print [0x6005]
+print [0x6006]
+print [0x6007]
+end
+continue
