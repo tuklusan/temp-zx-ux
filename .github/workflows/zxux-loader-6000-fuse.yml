@@ -38,7 +38,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y             fuse-emulator-gtk=1.6.0+dfsg1-2build3             libspectrum8=1.5.0-4build2             xvfb=2:21.1.12-1ubuntu1.8             x11-apps xdotool imagemagick
+          sudo apt-get install -y openbox             fuse-emulator-gtk=1.6.0+dfsg1-2build3             libspectrum8=1.5.0-4build2             xvfb=2:21.1.12-1ubuntu1.8             x11-apps xdotool imagemagick
           # Ubuntu chooses OpenSE BASIC unless the authentic ROM is supplied.
           # Pin the exact official Noble 'spectrum-roms_20081224-5_all.deb'
           # (SHA-256 from packages.ubuntu.com/noble/all/spectrum-roms/download).
@@ -72,6 +72,8 @@ jobs:
           Xvfb :99 -screen 0 1280x900x24 >"$d/xvfb.log" 2>&1 &
           xvfb_pid=$!
           sleep 1
+          openbox >"$d/window-manager.log" 2>&1 &
+          wm_pid=$!
 
           cat >"$d/debugger.txt" <<'DBG'
           breakpoint 0x5ce7
@@ -166,6 +168,7 @@ jobs:
             else
               echo "manual_tape_play=window:$win" >>"$d/diagnostics.txt"
               echo "window_title=$(xdotool getwindowname "$win" 2>/dev/null || true)" >>"$d/diagnostics.txt"
+              xdotool windowactivate --sync "$win" >>"$d/diagnostics.txt" 2>&1 || echo "windowactivate_failed" >>"$d/diagnostics.txt"
               xdotool windowfocus "$win" >>"$d/diagnostics.txt" 2>&1 || echo "windowfocus_failed" >>"$d/diagnostics.txt"
               echo "focused_window=$(xdotool getwindowfocus 2>/dev/null || true)" >>"$d/diagnostics.txt"
               sleep 0.5
@@ -217,6 +220,7 @@ jobs:
 
           kill "$tape_starter_pid" 2>/dev/null || true
           kill -KILL "$fuse_pid" 2>/dev/null || true
+          kill "$wm_pid" 2>/dev/null || true
           kill -KILL "$xvfb_pid" 2>/dev/null || true
           # Never wait indefinitely on a GUI emulator in a cloud runner.
           echo "cleanup_complete=$(date -u +%FT%TZ)" >> "$d/diagnostics.txt"
