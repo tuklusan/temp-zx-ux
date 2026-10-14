@@ -1,1 +1,24 @@
-/home/runner/work/_temp/d5247bf6-d189-48e0-ac1d-f78552022f82.sh: line 107: xwininfo: command not found
+
+xwininfo: Window id: 0x200003 "Fuse"
+
+  Absolute upper-left X:  480
+  Absolute upper-left Y:  311
+  Relative upper-left X:  1
+  Relative upper-left Y:  20
+  Width: 320
+  Height: 292
+  Depth: 24
+  Visual: 0x1cf
+  Visual Class: TrueColor
+  Border width: 0
+  Class: InputOutput
+  Colormap: 0x200002 (installed)
+  Bit Gravity State: NorthWestGravity
+  Window Gravity State: NorthWestGravity
+  Backing Store State: NotUseful
+  Save Under State: no
+  Map State: IsViewable
+  Override Redirect State: no
+  Corners:  +480+311  -480+311  -480-297  +480-297
+  -geometry 0x0+479+291
+
