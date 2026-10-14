@@ -19,7 +19,7 @@ KEYS = {"j": 44, "Control_L": 37, "p": 33, "Return": 36}
 
 def visible_fuse_window(display):
     env = dict(os.environ, DISPLAY=display)
-    for _ in range(150):
+    for _ in range(600):
         proc = subprocess.run(
             ["xwininfo", "-root", "-tree"],
             capture_output=True, text=True, env=env, check=True,
@@ -33,7 +33,7 @@ def visible_fuse_window(display):
             if "Map State: IsViewable" in info.stdout:
                 return int(window_id, 16)
         time.sleep(0.1)
-    raise RuntimeError("A viewable Fuse SDL window did not appear in 15 s")
+    raise RuntimeError("A viewable Fuse SDL window did not appear in 60 s")
 
 
 def send_rom_load(display):
@@ -89,7 +89,12 @@ def main():
     p.add_argument("--display", default=":99")
     p.add_argument("--log", type=Path, required=True)
     args = p.parse_args()
-    result = send_rom_load(args.display)
+    try:
+        result = send_rom_load(args.display)
+    except Exception as error:
+        failure = {"result": "ERROR", "error": str(error), "display": args.display}
+        args.log.write_text(json.dumps(failure, indent=2) + "\n")
+        raise
     args.log.write_text(json.dumps(result, indent=2) + "\n")
     print(json.dumps(result, sort_keys=True))
 
