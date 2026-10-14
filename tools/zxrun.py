@@ -126,6 +126,7 @@ class Tracer:
 
     def write_port(self, registers, port, value, *rest):
         if not port & 1:
+            self.border = value & 7
             m = value & 8
             if m != self.lastmic:
                 self.lastmic = m

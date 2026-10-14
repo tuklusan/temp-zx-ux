@@ -65,6 +65,7 @@ scrfree:
         ld (scrown),a
         ld (cdrawn),a
         out (0FEh),a
+        ld (SV_BORDCR),a        ; ... and stays black (key click, beep)
         ld a,TT_ECHO
         ld (ttymode),a
         ld hl,5800h

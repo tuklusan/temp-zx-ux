@@ -124,6 +124,13 @@ _border:
         cp 8
         j nc,@bad
         out (0FEh),a
+        rlca                    ; and BORDCR (5C48h), as the ROM's BORDER
+        rlca                    ; does: the ROM's beeper and tape routines
+        rlca                    ; and the kernel's key click put the border
+        cp 20h                  ; back from it.  Colours 0-3 give the lower
+        j nc,.b                 ; screen white ink
+        or 7
+.b:     ld (5C48h),a
         j @ok
 ; CF if HL is 0 or 1
 @bool:  ld a,h

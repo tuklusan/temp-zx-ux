@@ -8,7 +8,7 @@ They do not claim a fresh test run.
 
 The 48K ZX Spectrum leaves little spare RAM.
 Keep the resident kernel at or below 8,192 bytes.
-The current kernel fills 8,186 bytes.
+The current kernel fills 8,189 bytes.
 The machine has four process slots and one terminal.
 All logins have the same user rights.
 

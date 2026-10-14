@@ -875,6 +875,45 @@ def beep_pitch(s):
 
 
 @test
+def border_kept(s):
+    """border() sets BORDCR as well as the border, so the key click and
+    BEEP (which put the border back from BORDCR) keep the colour; bad
+    colours change neither; when the screen goes back to the console the
+    border is black again, and so is BORDCR (or the next key click would
+    bring the colour back)"""
+    s.login()
+    m = s.zx.mem
+    tr = s.zx.tr
+
+    def want(what, border, bordcr):
+        if (tr.border, m[0x5C48]) != (border, bordcr):
+            raise Fail('%s: border %d BORDCR %02X, want %d %02X\n%s'
+                       % (what, tr.border, m[0x5C48], border, bordcr, s.screen()))
+    want('at login', 0, 0x07)
+    s.expect('beep', absent=('usage',))         # BEEP with BORDCR black
+    want('beep at the shell', 0, 0x07)
+    run_cassette(s, 'bordck')
+    s.until('border 2', 6000)
+    s.zx.run(5)
+    want('border(2)', 2, 0x17)                  # 2*8 + white lower ink
+    s.zx.type('x')                              # key click
+    s.until('after beep', 3000)
+    s.zx.run(5)
+    want('after the key click and BEEP', 2, 0x17)
+    s.until('bad refused', 3000)
+    want('border(8), border(-1), border(256)', 2, 0x17)
+    s.zx.type('x')
+    s.until('border 5', 3000)
+    s.zx.run(5)
+    want('border(5)', 5, 0x28)                  # light colours: black ink
+    s.zx.type('x')                              # the program ends
+    s.wait_prompt(3000)
+    want('after the program', 0, 0x00)
+    s.expect('echo still', 'still')             # key clicks at the shell
+    want('typing at the shell', 0, 0x00)
+
+
+@test
 def boot_figures(s):
     """line 3 of the boot banner: the kernel's size is the resident
     kernel (kend - 6000h, the 8K limit's measure), the free figure is
