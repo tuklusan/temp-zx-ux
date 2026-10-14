@@ -1,0 +1,245 @@
+{
+  "beep": "one ROM 0x03B5 BEEPER call, DE=250 HL=407, then 25x 50Hz HALT",
+  "build_py_sha256": "7e3b24b1eccdc20a442513670abe8b01fc95992e14b13341e6887152d9142c4b",
+  "end": 49377,
+  "entry": 24576,
+  "labels": {
+    "beep_call": 53348,
+    "dest": 53553,
+    "error": 53360,
+    "error_halt": 53364,
+    "final": 53340,
+    "find_first_edge": 53382,
+    "glyph_char": 53512,
+    "glyph_scan": 53530,
+    "hold_final": 53354,
+    "jump_kernel": 53357,
+    "loop": 53300,
+    "next_bit": 53455,
+    "next_byte": 53453,
+    "pilot": 53403,
+    "print_row": 53484,
+    "read_fail": 53480,
+    "read_turbo": 53368,
+    "row": 53550,
+    "size_cursor": 53555,
+    "sizes": 53557,
+    "start": 53248,
+    "store": 53445,
+    "sync": 53418,
+    "text": 53605,
+    "text_cursor": 53551,
+    "warmup_spin": 53389
+  },
+  "loader_address": 53248,
+  "loader_bytes": 1125,
+  "normalized_source_tap_sha256": "9ff03bfbfcd33cc11e9a4f45b4197b67f0abb347052957bc36b74102eaf09004",
+  "payload_bytes": 24802,
+  "payload_sha256": "31dcbeaa01bf56e9bd96e8449eb7b3dbd5a28523ca830c56ce61e07343e425cf",
+  "program_name": "ZX-UX UNIX",
+  "release_name": "zx-ux-new-loader-test",
+  "runtime_fuse_verified": false,
+  "segments": [
+    {
+      "address": 24576,
+      "block": 1,
+      "bytes": 1034,
+      "pause_ms": 0,
+      "xor": 254
+    },
+    {
+      "address": 25610,
+      "block": 2,
+      "bytes": 1034,
+      "pause_ms": 0,
+      "xor": 202
+    },
+    {
+      "address": 26644,
+      "block": 3,
+      "bytes": 1034,
+      "pause_ms": 0,
+      "xor": 14
+    },
+    {
+      "address": 27678,
+      "block": 4,
+      "bytes": 1034,
+      "pause_ms": 0,
+      "xor": 121
+    },
+    {
+      "address": 28712,
+      "block": 5,
+      "bytes": 1034,
+      "pause_ms": 0,
+      "xor": 163
+    },
+    {
+      "address": 29746,
+      "block": 6,
+      "bytes": 1034,
+      "pause_ms": 0,
+      "xor": 194
+    },
+    {
+      "address": 30780,
+      "block": 7,
+      "bytes": 1034,
+      "pause_ms": 0,
+      "xor": 94
+    },
+    {
+      "address": 31814,
+      "block": 8,
+      "bytes": 1034,
+      "pause_ms": 0,
+      "xor": 119
+    },
+    {
+      "address": 32848,
+      "block": 9,
+      "bytes": 1034,
+      "pause_ms": 0,
+      "xor": 40
+    },
+    {
+      "address": 33882,
+      "block": 10,
+      "bytes": 1034,
+      "pause_ms": 0,
+      "xor": 140
+    },
+    {
+      "address": 34916,
+      "block": 11,
+      "bytes": 1033,
+      "pause_ms": 0,
+      "xor": 2
+    },
+    {
+      "address": 35949,
+      "block": 12,
+      "bytes": 1033,
+      "pause_ms": 0,
+      "xor": 232
+    },
+    {
+      "address": 36982,
+      "block": 13,
+      "bytes": 1033,
+      "pause_ms": 0,
+      "xor": 141
+    },
+    {
+      "address": 38015,
+      "block": 14,
+      "bytes": 1033,
+      "pause_ms": 0,
+      "xor": 93
+    },
+    {
+      "address": 39048,
+      "block": 15,
+      "bytes": 1033,
+      "pause_ms": 0,
+      "xor": 151
+    },
+    {
+      "address": 40081,
+      "block": 16,
+      "bytes": 1033,
+      "pause_ms": 0,
+      "xor": 90
+    },
+    {
+      "address": 41114,
+      "block": 17,
+      "bytes": 1033,
+      "pause_ms": 0,
+      "xor": 216
+    },
+    {
+      "address": 42147,
+      "block": 18,
+      "bytes": 1033,
+      "pause_ms": 0,
+      "xor": 131
+    },
+    {
+      "address": 43180,
+      "block": 19,
+      "bytes": 1033,
+      "pause_ms": 0,
+      "xor": 95
+    },
+    {
+      "address": 44213,
+      "block": 20,
+      "bytes": 1033,
+      "pause_ms": 0,
+      "xor": 160
+    },
+    {
+      "address": 45246,
+      "block": 21,
+      "bytes": 1033,
+      "pause_ms": 0,
+      "xor": 34
+    },
+    {
+      "address": 46279,
+      "block": 22,
+      "bytes": 1033,
+      "pause_ms": 0,
+      "xor": 182
+    },
+    {
+      "address": 47312,
+      "block": 23,
+      "bytes": 1033,
+      "pause_ms": 0,
+      "xor": 82
+    },
+    {
+      "address": 48345,
+      "block": 24,
+      "bytes": 1033,
+      "pause_ms": 0,
+      "xor": 190
+    }
+  ],
+  "source_code_blocks": [
+    {
+      "addr": 24576,
+      "name": "unix      ",
+      "size": 21702
+    },
+    {
+      "addr": 46278,
+      "name": "fs        ",
+      "size": 3100
+    }
+  ],
+  "source_file_sha256": "9ff03bfbfcd33cc11e9a4f45b4197b67f0abb347052957bc36b74102eaf09004",
+  "source_filename": "ZX-UX.tap",
+  "source_tap_sha256": "9ff03bfbfcd33cc11e9a4f45b4197b67f0abb347052957bc36b74102eaf09004",
+  "start": 24576,
+  "text_file_sha256": "c487dbb686e03e4297cf15ba8ff31a32292932be102c95e81a61d7e2801ef269",
+  "turbo": {
+    "block": "0x11",
+    "data_bit_speed_multiplier_vs_ROM": 1.667,
+    "one_half": 1025,
+    "pilot": 2042,
+    "pilot_edges": 247,
+    "sync_1": 875,
+    "sync_2": 613,
+    "zero_half": 513
+  },
+  "turbo_interblock_pause_ms": 0,
+  "tzx_bytes": 26520,
+  "tzx_sha256": "685c22aee899c1a63561febbb9f100dda93bbf44aa3d1ea52dd2301adadb3d59",
+  "verification": "static TZX/payload/parity checks + unit tests",
+  "verify_py_sha256": "7da2e9edcaf595df54c80d4a78db4f7b1dd70a8706b0d21eb403257dce47aae0",
+  "zip_sha256": "2dd67310172e55dfce7751172de0c4d8dd19a497264f875bf1f4304fc91c4723"
+}
