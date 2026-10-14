@@ -16,9 +16,9 @@ frames carry source payload and invoke one text row each. After row 24 the
 printer jumps to entry 0x6000.
 
 Each line in text-lines.txt must be exactly 32 printable ASCII characters
-(including trailing spaces). The 24 provided rows are the legacy wording
-*unchanged*, including its original E000/E003 values. Edit those labels in
-the configuration file if you want them to match a new kernel build.
+(including trailing spaces). The 24 progress rows are the exact corrected lines supplied with the new TAP.
+The last row is drawn completely, followed by one ROM beeper tone for ~250 ms,
+then a 500 ms silent hold before handoff to the kernel at 0x6000.
 
 The display is rendered by direct writes to Spectrum bitmap and attributes,
 so bottom rows 22 and 23 work. No ROM PRINT stream restriction applies.
@@ -26,10 +26,14 @@ All data frames use standard compact TZX 0x19, 450T pilot, 1140T/2280T
 per data bit, and ZQLoader's 17-byte per-segment headers.
 
 **The current user-supplied source TAP is unchanged** (SHA-256
-4f18817a198c7e6ad3a44b12503c112c204968bae207214bc74c4384dedb6fb9).
+9ff03bfbfcd33cc11e9a4f45b4197b67f0abb347052957bc36b74102eaf09004).
 The ZX Spectrum ROM screen shown after payload execution must be checked
 in Fuse, not assumed from an offline-only byte comparison.
 
 Provenance: ZQLoader upstream pinned commit
 ca5913fb563be1903f70aab9e88b0497606769f4,
 https://github.com/tuklusan/zqloader, MIT copyright Daan Scherft.
+
+New source CODE blocks: 21,702 bytes at 0x6000 and 3,100 bytes at 0xB4C6,
+contiguous to 0xC0E1. This release must be verified against the normal-speed
+reference boot/login screen after real-speed tape execution.

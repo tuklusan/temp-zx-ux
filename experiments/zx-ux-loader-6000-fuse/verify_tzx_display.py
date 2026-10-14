@@ -71,7 +71,12 @@ def check(tzx,source,lines):
     assert rom[1][288:292]==bytes.fromhex('79ee004f')
     text=''.join(lines).encode('ascii')
     assert len(lines)==24 and len(text)==768
-    assert turbo[1][0].endswith(text) and len(turbo[1][0])==891
+    assert turbo[1][0].endswith(text) and len(turbo[1][0])==908
+    # The last row must beep once, dwell, and then hand off at 0x6000.
+    final_code=bytes.fromhex('11fa00219701cdb50306197610fdc30060')
+    assert turbo[1][0].count(final_code)==1
+    assert turbo[1][0].count(bytes.fromhex('cdb503'))==1
+    assert turbo[1][0][-32:]==lines[-1].encode('ascii')
     chunks=[];nextaddr=0x6000
     for i in range(25):
         hdr,pilots,reps=turbo[2*i]
@@ -90,7 +95,7 @@ def check(tzx,source,lines):
     original=b''.join(source_blocks[j][1:-1] for j in range(1,len(source_blocks),2)
                       if source_blocks[j-1][1]==3)
     assembled=b''.join(chunks)
-    assert assembled==original and nextaddr==0xc05e and len(assembled)==24670
+    assert assembled==original and nextaddr==0xc0e2 and len(assembled)==24802
     print('PASS: ZX-UX UNIX, black/blue, 24 status rows, 24 payload chunks, exact source bytes')
     print('TZX SHA-256',hashlib.sha256(tzx).hexdigest(),'size',len(tzx))
 

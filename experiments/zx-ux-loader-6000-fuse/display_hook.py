@@ -49,6 +49,7 @@ class DisplayHook:
     load_address: int
     initializer: int
     progress_callback: int
+    final_beep_address: int
     data: bytes
     line_addresses: tuple[int, ...]
 
@@ -101,8 +102,22 @@ def build_display_hook(lines: list[str], *, base: int=HOOK_BASE, entry: int=0x60
     a.emit(0x22);a.absolute('pointer') # next 32 bytes
     a.emit(0x3A);a.absolute('row')
     a.emit(0xFE,ROWS)
-    a.emit(0xCA);a.word(entry)   # last row -> exact handoff
+    a.emit(0xCA);a.absolute('final_beep')  # 24th line complete: beep + dwell
     a.emit(0xC3);a.word(NEXT_BLOCK)
+    # Sinclair 48K ROM BEEPER at 0x03B5.
+    # DE = frequency * duration; HL = round(437500 / frequency - 30.125).
+    # 1000 Hz * 0.25 s => DE=250; HL=407. Exactly one call.
+    a.mark('final_beep')
+    a.emit(0x11);a.word(250)     # LD DE,250
+    a.emit(0x21);a.word(407)     # LD HL,407
+    a.emit(0xCD);a.word(0x03B5) # CALL ROM BEEPER (~250 milliseconds)
+    # Leave row 24 visible after the beep before the kernel clears screen.
+    # The ROM BEEPER enables interrupts; HALT counts 50Hz frame IRQs.
+    a.emit(0x06,25)             # LD B,25 (500 ms silent dwell)
+    a.mark('beep_dwell')
+    a.emit(0x76)                # HALT
+    a.emit(0x10);a.relative('beep_dwell') # DJNZ beep_dwell
+    a.emit(0xC3);a.word(entry)   # Transfer control to 0x6000
     a.mark('row')
     a.emit(0)
     a.mark('pointer')
@@ -113,7 +128,7 @@ def build_display_hook(lines: list[str], *, base: int=HOOK_BASE, entry: int=0x60
     data=a.finalize()
     if base+len(data)>0xFF47:raise ValueError('display hook collides with upper ZQLoader')
     # Source overlap is checked against the actual payload size by build.py.
-    return DisplayHook(base,a.labels['init'],a.labels['progress'],data,line_addresses)
+    return DisplayHook(base,a.labels['init'],a.labels['progress'],a.labels['final_beep'],data,line_addresses)
 
 if __name__=='__main__':
     from pathlib import Path
