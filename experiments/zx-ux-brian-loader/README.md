@@ -34,7 +34,7 @@ CODE layout, and progress lines are taken solely from your ZX-UX source.
 
 - BASIC program header: `ZX-UX UNIX` (10 characters), autorun from line 10.
 - Four standard-speed TZX `0x10` blocks: BASIC header/data and CODE header/data.
-- Resident CODE loader is 1124 bytes at `0xD000`, no ZQLoader dependency.
+- Resident CODE loader is 1125 bytes at `0xD000`, no ZQLoader dependency.
 - 24 compact TZX turbo blocks `0x11` (one per displayed line), with 247-pulse
   short pilot, 2042T pilot pulse, 875/613T sync and 513/1025T zero/one
   *half*-pulses (two half-pulses per bit). Each block includes the exact source
@@ -47,6 +47,14 @@ CODE layout, and progress lines are taken solely from your ZX-UX source.
 - The source CODE blocks must be contiguous from `0x6000` and fit below the
   reserved stack at 0xCEFF. The original source's BASIC program is not copied;
   it is replaced by this loader program.
+
+## Loading border
+
+The ROM edge reader toggles complementary border colours on each tape edge.
+To avoid the old yellow/blue pair without adding a larger pulse reader,
+ZX-UX uses red/cyan during the short pilot and black/white during data.
+The most visible data-loading border is black/white; red is visible during
+inter-block synchronization. The underlying Brian timing is unchanged.
 
 ## Verification status
 
