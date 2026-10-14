@@ -1,2 +1,1 @@
-Openbox-Message: Unable to find a valid menu file "/var/lib/openbox/debian-menu.xml"
-X connection to :99 broken (explicit kill or server shutdown).
+/home/runner/work/_temp/d5247bf6-d189-48e0-ac1d-f78552022f82.sh: line 7: openbox: command not found
