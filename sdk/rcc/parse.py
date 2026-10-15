@@ -37,7 +37,8 @@ class Sym:
         self.params = None        # functions
         self.body = None
         self.locals = []
-        self.calls = set()
+        self.calls = {}           # functions called, in source order (an ordered set:
+                                  # compiled output must not depend on object ids)
         self.used = False
         self.static_fn = False
         self.addr_taken = False
@@ -820,7 +821,7 @@ class Parser:
         args = [self.convert(a, pt, 'argument', where) for a, pt in zip(args, pts)]
         s.used = True
         if self.fn:
-            self.fn.calls.add(s)
+            self.fn.calls[s] = None
         return N('call', s.ty[1], sym=s, args=args, where=where)
 
     # ------------------------------------------------------------ typing helpers

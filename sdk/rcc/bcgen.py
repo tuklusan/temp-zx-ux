@@ -82,7 +82,7 @@ class BGen(Gen):
 
     def __init__(self, prog, opts=None):
         super().__init__(prog, opts)
-        self.bc = set()
+        self.bc = {}                # bytecode functions, in source order (ordered set)
         self.used_ops = set()
 
     # ------------------------------------------------------------ layout
@@ -101,7 +101,7 @@ class BGen(Gen):
             if mode not in ('all', None) and f.name not in mode:
                 continue
             F = self.funcs[f]
-            self.bc.add(f)
+            self.bc[f] = None
             F.recursive = True          # frame layout
             F.size = 0
             n = len(f.params)
