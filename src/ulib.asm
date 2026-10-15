@@ -472,10 +472,7 @@ getch:  push hl
         ld (R_PTR),hl
         or a
 .xj0_54:
-.x:     pop bc
-        pop de
-        pop hl
-        ret
+.x:     jp mputc.xj0_2  ; (shared tail)
 .eof:   ld (R_ERR),a
         scf
         jr .x

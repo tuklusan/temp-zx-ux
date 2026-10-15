@@ -89,6 +89,7 @@ The SDK needs only Python 3.11 or later; `sdk/bin/rvm game.ssx` runs the
 program on an emulated Spectrum that boots this ZX-UX (see `sdk/README.md`).
 
 On ZX-UX, type `/dev/cassette/game` and play the program tape.
+`/dev/cassette/*` runs the first program on the tape, whatever its name.
 You can add program arguments after the name.
 Start some programs with `&` to keep the shell running.
 

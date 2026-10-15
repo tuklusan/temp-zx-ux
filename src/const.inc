@@ -9,7 +9,8 @@
 ;  4000-5AFF  display file + attributes
 ;  5B00-5BFF  printer buffer      -> kernel globals (proc table, fsp ...)
 ;  5C00-5CB5  system variables    (MEMBOT 5C92..5CAF -> kernel scratch,
-;                                  zxpack encoder variables)
+;                                  zxpack encoder variables; MEMBOT+0..4
+;                                  free: a program's BEEP writes there)
 ;  5CB6-5CCA  CHANS (needed by ROM PRINT-OUT)
 ;  5CCB-5EFF  dead BASIC/IF1 area -> zxpack unpack i-node, keyboard ring,
 ;             process names, swapper scratch, zxpack model tail and coder
@@ -44,7 +45,7 @@ STKRES  equ 384             ; most stack a program may reserve (its header's
                             ; second word, saved with its window image)
 
 KV      equ 05B00h          ; kernel globals (printer buffer)
-KSTACK  equ 05F00h          ; kernel stack top (grows into 5CEB..)
+KSTACK  equ 05F00h          ; kernel stack top (grows down to the low kernel's end)
 IM2I    equ 039h            ; I register: ROM page full of FFh
 TTYBUF  equ 05F01h          ; 80 bytes
 TTYBSZ  equ 80

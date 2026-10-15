@@ -116,6 +116,16 @@ ROM error reports ("Number too big", "Invalid argument") come back through the t
 Integer conversions use the ROM's `truncate` and `FP-TO-BC`. `beep` stacks its two numbers and jumps
 into ROM `BEEP` (03F8h), which ends in `BEEPER`.
 
+**After every note `beep` lets one frame interrupt in (`EI`, `HALT`).**
+`BEEPER` runs with interrupts off, and a program that calls it again at once never lets the frame
+interrupt in: the keyboard, the clock, BREAK and the scheduler all stop until it ends, so the
+shell cannot be typed to and no other process runs. With the break, the kernel's interrupt routine
+runs after every note: keys are read, the clock and BREAK work, and the scheduler can switch to
+another process when the beeper's time slice (4 frames) is up. It costs a gap of up to 20 ms
+between notes. (A program built with an earlier library still holds everything up: rebuild it, as
+`tools/mktapes.py` does.) `beep` still saves and restores MEMBOT's first five bytes, where kernels
+before rev 5 kept their clock; the kernel keeps it elsewhere now (`tod_h` … in the printer buffer).
+
 Results are the ROM's, bit for bit, as C48 requires. The kernel stays within 8 KB, and the C
 extensions cost it only `ticks` and `screen` (about 100 bytes).
 
@@ -326,9 +336,13 @@ screen sharing and multitasking.
   described.
 - **Typing:** characters become keys as ZX-UX's L mode types them (SYMBOL SHIFT symbols, the
   tty's keyword tokens for `~ | \ { } [ ]`, `` ` `` as SYMBOL SHIFT + X). They are held two
-  frames, three apart. A key is only pressed again once the ROM's KEYBOARD routine has let it go
-  (five frames), and a third key only once one of its two KSTATE sets is free.
+  scans, three apart. A key is only pressed again once the ROM's KEYBOARD routine has let it go
+  (five scans), and a third key only once one of its two KSTATE sets is free.
   `--compat-keys` types as the ZX-UX tests do (4 held, 7 apart).
+  The keyboard counts the frame interrupts the machine has taken, the scans of ZX-UX's
+  interrupt routine, not frames: while interrupts are off (a BEEP, a tape transfer) a key stays
+  held until the system has seen it, as a person holds a key until the Spectrum answers. Counted
+  in frames, keys typed while a background program beeped were lost.
 
 **The window (`sdk/rvmgui.py`, Tk).**
 - **Frames:** the machine runs in a thread at the Spectrum's own rate, 50.08 frames a second

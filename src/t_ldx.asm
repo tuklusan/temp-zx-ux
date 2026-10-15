@@ -8,11 +8,17 @@
 ;  Then sys ssxload has the kernel load the SSX1 file that follows into
 ;  a block of memory, relocate it and start it with the arguments; this
 ;  process becomes the program.  BREAK stops the search.
+;
+;  /dev/cassette/* runs the first program on the tape, whatever its
+;  name: argv[0] becomes /dev/cassette/NAME as if typed (the program,
+;  the status line and ps see the name; sys ssxload names the process
+;  from argv[0]).
 ; =====================================================================
 LX_H    equ TV                  ; 17-byte cassette header
 LX_FD   equ TV+17
 LX_NM   equ TV+19               ; the name looked for
-LX_END  equ TV+21
+LX_A0   equ TV+21               ; argv[0] for *: /dev/cassette/NAME (25)
+LX_END  equ TV+46
 
 t_ldx:  db 18h,6
         dw STKRES, LX_END-UDATA, ldx_m
@@ -41,7 +47,15 @@ ldx_m:  pop hl
         sbc hl,de
         jr nz,.hdr
         ld de,(LX_NM)           ; called NAME
-        ld hl,LX_H+1
+        ld a,(de)               ; ("*" alone: any name)
+        cp '*'
+        jr nz,.cmp
+        inc de
+        ld a,(de)
+        dec de
+        or a
+        jr z,.any
+.cmp:   ld hl,LX_H+1
         ld b,10
 .nm:    ld a,(de)
         or a
@@ -57,6 +71,28 @@ ldx_m:  pop hl
         jr nz,.hdr
         inc hl
         djnz .sp
+        jr .got
+.any:   ld de,LX_A0             ; argv[0] := /dev/cassette/NAME, with the
+        ld hl,(U_ARGV)          ; name found
+        ld (hl),e
+        inc hl
+        ld (hl),d
+        ld hl,s_cas
+        call strcpy             ; (DE on its 0)
+        ld a,'/'
+        ld (de),a
+        inc de
+        ld hl,LX_H+1
+        ld b,10
+.an:    ld a,(hl)
+        cp ' '
+        jr z,.a0
+        ld (de),a
+        inc hl
+        inc de
+        djnz .an
+.a0:    xor a
+        ld (de),a
 .got:   ld hl,(LX_FD)
         call sc_close
         ; memory: the program's, and its arguments (strings and vector)

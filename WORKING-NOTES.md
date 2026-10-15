@@ -8,7 +8,12 @@ They do not claim a fresh test run.
 
 The 48K ZX Spectrum leaves little spare RAM.
 Keep the resident kernel at or below 8,192 bytes.
-The current kernel fills 8,189 bytes.
+The current kernel fills 8,161 bytes.
+A further 177 bytes of kernel (strings, the keyboard token table, the
+tape clock routine and its variables) are loaded by the BASIC loader at
+`5D98h`, below the kernel stack: block `lowk`, which costs the arena
+nothing.
+The kernel stack keeps at least 180 bytes above it.
 The machine has four process slots and one terminal.
 All logins have the same user rights.
 
@@ -75,7 +80,7 @@ Repeat the tests after changes to the source.
 | Address | Use |
 |---|---|
 | `4000h`–`5AFFh` | Spectrum display |
-| `5B00h`–`5FFFh` | System data and low-memory work space |
+| `5B00h`–`5FFFh` | System data and low-memory work space; the low kernel at `5D98h` |
 | `6000h`–`7FFFh` | Resident kernel, up to 8 KB |
 | `8000h` onward | Resident commands and text; end varies by build |
 | After resident text | Startup area (boot code and messages, at least 256 bytes: later the zxpack model), i-node table, and RAM file area |

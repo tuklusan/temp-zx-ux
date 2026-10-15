@@ -43,7 +43,10 @@ wlend   equ KV+226      ; word image the window is lent to (FFFF: lent,
                         ;   waiting for its space to be free)
 ttop    equ KV+228      ; first console row while others own the screen
                         ;   (0: the whole screen; 21: rows 21-22)
-                        ; KV+229..232 free
+tod_h   equ KV+229      ; time of day: hours, minutes, seconds (in a row:
+tod_m   equ KV+230      ;   tick1s steps through them); they were in
+tod_s   equ KV+231      ;   MEMBOT, where a program's BEEP keeps a number
+stdirty equ KV+232      ; status line to be redrawn
 a_try   equ KV+233      ; arena: attempts left
 a_new   equ KV+234      ; word arena: moved block's new payload
                         ; KV+236..238: zxpack (zx.asm)
@@ -77,11 +80,13 @@ sw_hi   equ KV2+67      ; word window image: stack (sp .. top)
 sw_n    equ KV2+69      ; word window image size (save layout)
 a_need  equ KV2+71      ; word arena: block size wanted
 a_old   equ KV2+73      ; word arena: moved block's old payload
-                        ; KV2+75 free
+kcon    equ KV2+75      ; kernel messages on (set at boot)
 ZLO4    equ KV2+76      ; 97  zxpack: model tail and coder state (zx.asm)
-KV2END  equ ZLO4+97     ; kernel stack grows down to here: 360 bytes.
+KV2END  equ ZLO4+97
+LOWK    equ KV2END      ; the low kernel (unix.asm lowk), then the kernel
+                        ; stack grows down to its end: 360 bytes in all.
                         ; Its deepest use is idle or disk-full packing
-                        ; with an interrupt on top: 76 bytes measured
+                        ; with an interrupt on top: 82 bytes measured
                         ; over the test suite, under 150 by inspection.
 
 ; fsp flags

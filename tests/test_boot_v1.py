@@ -12,6 +12,19 @@ ROOT = Path(__file__).resolve().parent.parent
 KBASE = 0x6000
 
 
+def loader_end():
+    """Where the BASIC loader's own memory ends while it loads: its
+    program from PROG (5CCBh), VARS' end marker, the 5-byte edit line,
+    and the ROM's 34-byte header work space for LOAD (STKBOT = STKEND).
+    For the 85-byte loader that is 5D48h, as the ROM's own STKEND reads
+    while it loads (measured in the emulator)."""
+    tap = (ROOT / 'build/ZX-UX.tap').read_bytes()
+    first = int.from_bytes(tap[0:2], 'little')
+    second = int.from_bytes(tap[2 + first:4 + first], 'little')
+    basic = second - 2                     # (flag and parity bytes)
+    return 0x5CCB + basic + 1 + 5 + 34
+
+
 def main():
     values = {}
     for line in (ROOT / 'src/unix.sym').read_text().splitlines():
@@ -22,6 +35,7 @@ def main():
     fs = (ROOT / 'build/fs.img').read_bytes()
     image = (ROOT / 'build/unix.bin').read_bytes()
     font = (ROOT / 'src/font4x8.bin').read_bytes()
+    low = (ROOT / 'build/lowk.bin').read_bytes()
     free_bytes = int.from_bytes(fs[-4:-2], 'little')
     nproc = values['NPROC']
     boot_area = values['bootend'] - values['ZXW']
@@ -47,6 +61,14 @@ def main():
         ('boot success text', image[values['msg_ok'] - KBASE:
                                     values['msg_ok'] - KBASE + 3] == b'ok\n'),
         ('tape names', b'ZX-UX v1' in (ROOT / 'build/ZX-UX.tzx').read_bytes()),
+        ('low kernel on the tape',
+         low and low in (ROOT / 'build/ZX-UX.tzx').read_bytes() and b'lowk' in
+         (ROOT / 'build/ZX-UX.tzx').read_bytes()),
+        ('low kernel below the kernel stack',
+         values['LOWK'] == values['KV2END'] and
+         values['LOWK'] + len(low) <= values['KSTACK'] - 180),
+        ('low kernel above the loader while it loads',
+         values['LOWK'] > loader_end()),
     ]
     for name, good in check:
         print(('%s ' % name).ljust(32) + ('PASS' if good else 'FAIL'))

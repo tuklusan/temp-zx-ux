@@ -53,8 +53,13 @@ tapend: ld sp,(tapsp)           ; drop the error trap (flags kept)
         ld hl,kerrsp
         ld (SV_ERRSP),hl
         di
+        ld a,250                ; for 5 s this process is not preempted:
+        ld (tapq),a             ; the next block must not go by unseen
+        ld a,(cur)              ; (isr)
+        ld (tapqp),a
         ld a,0
         ld (tapbusy),a
+        call c,tclk             ; the time it took onto the clock (CF kept)
         ei
         jp c,ttwrite.xj0_33  ; (shared tail)
         ld a,EIO
@@ -88,22 +93,6 @@ tapsp   equ MEMBOT+6
 ; ---------------------------------------------------------------------
 ;  tty input - ISR side
 ; ---------------------------------------------------------------------
-; Spectrum keyword tokens produced by SYMBOL SHIFT in L mode are mapped
-; to the ASCII characters printed in red on the same key (E mode),
-; so  ~ | \ { } [ ]  can be typed without extended mode.
-toktab: db 0E2h,'~'             ; STOP  (SS+A)
-        db 0C3h,'|'             ; NOT   (SS+S)
-        db 0CDh,5Ch             ; STEP  (SS+D) backslash
-        db 0CCh,'{'             ; TO    (SS+F)
-        db 0CBh,'}'             ; THEN  (SS+G)
-        db 0C6h,'['             ; AND   (SS+Y)
-        db 0C5h,']'             ; OR    (SS+U)
-        db 0ACh,'@'             ; AT    (SS+I)  (SS+2 is @ too)
-        db 0C7h,'<'             ; <=
-        db 0C8h,'>'             ; >=
-        db 0C9h,'!'             ; <>
-        db 0
-
 ; ttrawin: A = key code from ROM KEY-INPUT (ISR)
 ttrawin:
         cp 0Dh                  ; ENTER
@@ -725,12 +714,8 @@ ckty:   ld a,(hl)
         ret
 ENOTTY  equ 25
 
-; low-memory scratch
-tod_h   equ MEMBOT+0
-tod_m   equ MEMBOT+1
-tod_s   equ MEMBOT+2
-stdirty equ MEMBOT+3
-kcon    equ MEMBOT+4
+; low-memory scratch (the time of day, stdirty and kcon: kvars.inc; they
+; were MEMBOT+0..4, which a program's BEEP uses)
 trow    equ MEMBOT+8            ; print position: row (trow, tcol adjacent)
 tcol    equ MEMBOT+9            ;   column 0-63
 tinv    equ MEMBOT+10           ; F0h: INVERSE 1

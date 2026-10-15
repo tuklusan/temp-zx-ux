@@ -537,8 +537,7 @@ sum_m:  pop hl
 .xj0_22:
 .xj1_9:
 .xj2_3:
-        ld de,s_cantopen
-        jp perr
+        jp mfile.xj0_0  ; (shared tail)
 .o:     ld hl,0
         ld (TV),hl
         ld (TV+2),hl
@@ -760,6 +759,7 @@ mfile:  push hl
         call ropen
         pop hl
         jr nc,.o
+.xj0_0:
         ld de,s_cantopen
         jp perr
 .o:     ld a,(MO_NF)
@@ -850,6 +850,7 @@ mputc:  cp 10
         ld (MO_ROW),a
         ld hl,s_moer
         call puts
+.xj0_2:
         pop bc
         pop de
         pop hl

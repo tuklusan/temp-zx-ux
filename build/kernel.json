@@ -1,7 +1,8 @@
 {
  "format": "zx-ux-kernel/1",
- "kernel_bytes": 8189,
- "kernel_sha256": "6d37147cab53fc3b7c1c7acc79dd403c5f95a63381a4dd4084e8b25a302da16d",
+ "kernel_bytes": 8161,
+ "kernel_sha256": "65cdac88a26ef80e87a93647d3c6b0e5e48dd9d5c578bd90f65857c95579f87b",
+ "lowk_sha256": "05eb24b578863b3266afbd5e496f765b3503ac42b794b1cb316419e071e5a66b",
  "note": "Written by tools/build.py from the assembled kernel; read by sdk/rvm.",
  "symbols": {
   "KV": 23296,

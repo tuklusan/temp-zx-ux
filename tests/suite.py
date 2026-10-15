@@ -213,7 +213,7 @@ def dirs(s):
 @test
 def misc_cmds(s):
     s.login()
-    s.expect('date', 'Fri Apr 23 00:0', '1982')   # the ZX Spectrum's release
+    s.expect('date', 'Fri Apr 23 09:0', '1982')   # the ZX Spectrum's release
     s.sh('date 0704120076')
     s.expect('date', 'Jul  4 12:00', '1976')
     s.expect('hello', 'Hello World!')
@@ -947,10 +947,14 @@ def vi_big_file(s):
 
 @test
 def beep_pitch(s):
-    """beep() at 12:34 on the status clock plays C4 then C5 (sdk float.asm)"""
+    """beep() at 12:34 on the status clock plays C4 then C5 (sdk float.asm),
+    whatever MEMBOT holds (the ROM's BEEP reads its pitch from there; the
+    kernel kept its clock there before rev 5)"""
     s.login()
-    s.zx.mem[0x5C92] = 12           # tod_h, tod_m (dev.asm): past the first
-    s.zx.mem[0x5C93] = 34           # minute, BEEP used to read these bytes
+    s.zx.mem[ksym('tod_h')] = 12
+    s.zx.mem[ksym('tod_m')] = 34
+    s.zx.mem[0x5C92] = 12           # MEMBOT: what the old kernel's clock
+    s.zx.mem[0x5C93] = 34           # left there at 12:34
     tr = s.zx.tr
     spk = []
     plain = type(tr).write_port
@@ -1173,6 +1177,293 @@ def boot_figures(s):
         raise Fail('banner says kernel %d, free %d, procs %d; the kernel has %d, %d, %d'
                    % (got + want))
 
+
+
+# ---------------------------------------------------------------- rev 5
+def play(s, blocks, delay=350000):
+    """the cassette plays these blocks from DELAY T-states on; returns the
+    T-state of its last edge"""
+    s.zx.tr.edges = zxrun.tape_pulses(blocks, s.zx.sim.registers[25] + delay)
+    return s.zx.tr.edges[-1]
+
+
+def run_past(s, t, extra=50):
+    """run until T-state t (the tape's end), then EXTRA frames more"""
+    while s.zx.sim.registers[25] < t:
+        s.zx.run(10)
+    s.zx.run(extra)
+
+
+def system_blocks():
+    """the system tape's first four blocks: a BASIC program and a CODE
+    file, neither of them a ZX-UX program"""
+    data = open(os.path.join(ROOT, 'build', 'ZX-UX.tap'), 'rb').read()
+    blocks, p = [], 0
+    while p < len(data):
+        n = data[p] | data[p + 1] << 8
+        blocks.append(data[p + 2:p + 2 + n])
+        p += 2 + n
+    return blocks[:4]
+
+
+def slot_named(s, name):
+    """the process slot whose status-line name is NAME (stline), or None"""
+    base = ksym('stline')
+    for i in range(ksym('NPROC')):
+        if bytes(s.zx.mem[base + 8 * i:base + 8 * i + 8]).rstrip(b' \0').decode('latin-1') == name[:8]:
+            return i
+    return None
+
+
+def cpu_ticks(s, slot):
+    a = ksym('p_cpu') + 2 * slot
+    return s.zx.mem[a] | s.zx.mem[a + 1] << 8
+
+
+def clock_seconds(s):
+    m = s.zx.mem
+    return (m[ksym('tod_h')] * 3600 + m[ksym('tod_m')] * 60 + m[ksym('tod_s')]
+            + m[ksym('ticks')] / 50.0)
+
+
+@test
+def cassette_star(s):
+    """/dev/cassette/* runs the first program on the tape, whatever its
+    name, with its arguments; argv[0] is /dev/cassette/NAME as if it had
+    been typed; the program after it does not run"""
+    s.login()
+    free = df_free(s)
+    s.zx.type('/dev/cassette/* one two\n')
+    play(s, ssx_tape('ssxargs') + ssx_tape('ssxbig'))
+    s.wait_prompt(6000)
+    scr = s.screen()
+    for w in ('ssx args:', '/dev/cassette/ssxargs', 'one', 'two'):
+        if w not in scr:
+            raise Fail('%r missing:\n%s' % (w, scr))
+    if '/dev/cassette/*' in scr.replace('# /dev/cassette/* one two', ''):
+        raise Fail('argv[0] is still /dev/cassette/*:\n' + scr)
+    if 'big ok' in scr:
+        raise Fail('the second program ran too')
+    if df_free(s) < free - 8:
+        raise Fail('memory not given back: %d -> %d' % (free, df_free(s)))
+
+
+@test
+def cassette_star_names(s):
+    """/dev/cassette/* & winds past what is not a ZX-UX program (the
+    system tape's BASIC and CODE files) to the first one, and the process
+    has its name: the status line and ps show cpuspin, never *.  Killed,
+    it leaves the status line at once, though the shell has not waited
+    for it yet (it is a zombie until then)"""
+    s.login()
+    end = None
+    s.zx.type('/dev/cassette/* &\n')
+    end = play(s, system_blocks() + ssx_tape('cpuspin') + ssx_tape('ssxargs'))
+    for _ in range(1500):
+        s.zx.run(10)
+        if re.search(r'\d:cpuspin', s.status()):
+            break
+    else:
+        raise Fail('cpuspin not on the status line: %r' % s.status())
+    if '*' in s.status():
+        raise Fail('the status line shows *: %r' % s.status())
+    run_past(s, end)
+    slot = slot_named(s, 'cpuspin')           # (ps prints these names)
+    if slot is None:
+        raise Fail('no process named cpuspin')
+    if 'ssx args:' in s.screen():
+        raise Fail('the second program ran')
+    s.sh('kill %d' % ksym_pid(s, 'cpuspin'))
+    s.zx.run(10)
+    if s.zx.mem[ksym('p_stat') + slot] != ksym('SZOMB'):
+        raise Fail('cpuspin is not a zombie after kill (p_stat %d): the test needs one'
+                   % s.zx.mem[ksym('p_stat') + slot])
+    if 'cpuspin' in s.status() or re.search(r'\dz', s.status()):
+        raise Fail('the killed process is still on the status line: %r' % s.status())
+    s.expect('ps', 'init', 'sh', absent=('cpuspin',))
+
+
+@test
+def cassette_star_only(s):
+    """only "*" itself means any program: glob passes /dev/cassette/ss*
+    on as it is (no "No match"), and the loader looks for a program of
+    that name, so ssxargs does not run; BREAK ends the search.  Globbing
+    elsewhere is as before"""
+    s.login()
+    s.zx.type('/dev/cassette/ss*\n')
+    run_past(s, play(s, ssx_tape('ssxargs')), 100)
+    scr = s.screen()
+    if 'No match' in scr or 'ssx args:' in scr:
+        raise Fail('/dev/cassette/ss* matched something:\n' + scr)
+    s.zx.tr.pressed = {'CS', 'SPACE'}          # BREAK, held as a user would
+    s.zx.run(75)
+    s.zx.tr.pressed = set()
+    s.wait_prompt(3000)
+    s.expect('echo /etc/m*', '/etc/motd')
+    s.expect('echo /nonesuch/*', 'No match')
+
+
+@test
+def bg_no_room(s):
+    """a background program that the arena cannot hold, and that may not
+    borrow the window (only a program BREAK can stop may), is refused
+    with a message instead of vanishing; memory and processes are as
+    before"""
+    s.login()
+    free = df_free(s)
+    s.zx.type('/dev/cassette/ssxbig &\n')
+    play(s, ssx_tape('ssxbig'))
+    s.until('/dev/cassette/ssxbig: not enough memory', 8000)
+    s.zx.type('\n')                       # (it came after the next prompt)
+    s.wait_prompt(3000)
+    s.expect('ps', 'init', 'sh', absent=('ssxbig',))
+    if df_free(s) < free - 8:
+        raise Fail('memory not given back: %d -> %d' % (free, df_free(s)))
+
+
+@test
+def tape_keeps_cpu(s):
+    """while a program works through the tape no other process runs (one
+    could keep the CPU - a BEEP runs with interrupts off - while the next
+    block goes by): a CPU-bound background job gets no time while tap t
+    lists six programs, and gets it again once the tape has been still
+    for 5 s.  (Without this the job got 4 ticks in the same run.)  When
+    the tape's process ends the hold ends with it: the next process in
+    its slot must not inherit it"""
+    s.login()
+    s.zx.type('/dev/cassette/cpuspin &\n')
+    run_past(s, play(s, ssx_tape('cpuspin')), 100)
+    slot = slot_named(s, 'cpuspin')
+    if slot is None:
+        raise Fail('cpuspin did not start: %r' % s.status())
+    data = open(os.path.join(ROOT, 'build', 'ssx', 'ssxargs.ssx'), 'rb').read()
+    tape = [b for i in range(6) for b in rtap_records(data, 'p%d' % i)]
+    s.zx.type('tap t > /tmp/l\n')
+    s.zx.run(200)
+    before = cpu_ticks(s, slot)
+    run_past(s, play(s, tape), 50)
+    during = cpu_ticks(s, slot) - before
+    s.zx.tr.pressed = {'CS', 'SPACE'}           # tap t waits on: BREAK
+    s.zx.run(75)
+    s.zx.tr.pressed = set()
+    s.wait_prompt(3000)
+    held = s.zx.mem[ksym('tapq')]                # (tap has exited after BREAK)
+    mid = cpu_ticks(s, slot)
+    s.zx.run(400)                                # 5 s after the last transfer
+    after = cpu_ticks(s, slot) - mid
+    s.sh('kill %d' % ksym_pid(s, 'cpuspin'))
+    got = [l for l in s.sh('cat /tmp/l') if '/dev/cassette/p' in l]
+    if during != 0:
+        raise Fail('the background job ran %d ticks while the tape was read' % during)
+    if after <= 0:
+        raise Fail('the background job did not run again after the tape')
+    if held:
+        raise Fail('tap has exited, but the hold on the CPU is still %d frames' % held)
+    if len(got) != 6:
+        raise Fail('tap t listed %d of 6 programs: %s' % (len(got), got))
+
+
+def rtap_records(data, name):
+    import rtap
+    return rtap.records(data, name)
+
+
+@test
+def tape_clock(s):
+    """the clock goes on through a tape load: the ROM loads a block with
+    interrupts off, and the kernel then puts the time the block took
+    (its pilot tone and its bits) on the clock, the frame counter and
+    the sleep timers.  It ends within 2 s of the time that has passed,
+    for a small program and for a 5 KB one (it lost the whole load, about
+    12 s and 40 s, before)"""
+    import rtap
+    from rcc import driver
+    s.login()
+    big = os.path.join(ROOT, 'build', 'ssx', 'mobius-bc.ssx')    # (4.9 KB)
+    os.makedirs(os.path.dirname(big), exist_ok=True)
+    if driver.main([os.path.join(ROOT, 'programs', 'c48', 'demos', 'mobius.c'), '-o', big,
+                    '--bytecode']):
+        raise Fail('rcc failed for mobius')
+    for name, blocks, bg in (('ssxargs', ssx_tape('ssxargs'), ''),
+                             ('mobius', rtap.records(open(big, 'rb').read(), 'mobius'), ' &')):
+        c0, t0 = clock_seconds(s), s.zx.sim.registers[25]
+        s.zx.type('/dev/cassette/%s%s\n' % (name, bg))
+        play(s, blocks)
+        s.wait_prompt(9000)
+        s.zx.run(60)
+        passed = (s.zx.sim.registers[25] - t0) / 3.5e6
+        told = clock_seconds(s) - c0
+        if abs(told - passed) > 2:
+            raise Fail('%s: %.1f s passed, the clock says %.1f s' % (name, passed, told))
+    if 'mobius' not in s.status():
+        raise Fail('mobius is not running: %s' % s.status())
+
+
+@test
+def beep_shares_cpu(s):
+    """a program that calls the ROM's BEEPER itself with no break between
+    the notes (beephog) holds everything up: interrupts stay off, so no
+    other process runs and the clock stops.  The library's beep() lets a
+    frame interrupt in after every note, so with a program
+    that beeps on and on through it (beeploop), a CPU-bound job still
+    gets time and the clock goes on"""
+    from skoolkit.simutils import PC
+    s.login()
+    s.zx.type('/dev/cassette/cpuspin &\n')
+    run_past(s, play(s, ssx_tape('cpuspin')), 100)
+    spin = slot_named(s, 'cpuspin')
+    if spin is None:
+        raise Fail('cpuspin did not start: %r' % s.status())
+    s.zx.type('/dev/cassette/beephog &\n')
+    run_past(s, play(s, ssx_tape_asm('beephog')), 0)
+    for _ in range(3000):                               # into its first note
+        s.zx.run(1)
+        if 0x03B5 <= s.zx.sim.registers[PC] < 0x03F8:
+            break
+    else:
+        raise Fail('beephog did not start beeping')
+    c, f = cpu_ticks(s, spin), kword(s, 'fticks')
+    s.zx.run(150)                                       # 3 s of its 5 s
+    if cpu_ticks(s, spin) - c != 0 or kword(s, 'fticks') - f > 2:
+        raise Fail('beephog let others run (%d ticks, %d frames): the test proves nothing'
+                   % (cpu_ticks(s, spin) - c, kword(s, 'fticks') - f))
+    s.zx.run(200)                                       # it has ended
+    s.zx.type('/dev/cassette/beeploop &\n')
+    run_past(s, play(s, ssx_tape('beeploop')), 200)    # past its 2 s wait
+    if slot_named(s, 'beeploop') is None:
+        raise Fail('beeploop did not start: %r' % s.status())
+    c, f = cpu_ticks(s, spin), kword(s, 'fticks')
+    s.zx.run(500)
+    if cpu_ticks(s, spin) - c <= 0:
+        raise Fail('the CPU-bound job got no time while beeploop beeped')
+    if kword(s, 'fticks') - f < 20:
+        raise Fail('the frame counter went on %d frames in 10 s of BEEPs'
+                   % (kword(s, 'fticks') - f))
+
+
+def ksym_pid(s, name):
+    slot = slot_named(s, name)
+    a = ksym('p_pid') + 2 * slot
+    return s.zx.mem[a] | s.zx.mem[a + 1] << 8
+
+
+@test
+def low_kernel(s):
+    """the low kernel (block "lowk", loaded below the kernel stack) is
+    there, byte for byte, after a busy session: the kernel stack never
+    reached it"""
+    s.login()
+    s.sh('cat /usr/doc/zxpack > /tmp/a')
+    s.sh('cp /tmp/a /tmp/b')
+    s.sh('ls -l /tmp /bin /etc > /tmp/c')
+    s.zx.run(1000)                               # idle: the packer runs
+    low = bytearray(open(os.path.join(ROOT, 'build', 'lowk.bin'), 'rb').read())
+    a = ksym('LOWK')
+    now = bytearray(s.zx.mem[a:a + len(low)])
+    for v in ('tapq', 'tapqp'):                  # (its two variables)
+        now[ksym(v) - a] = low[ksym(v) - a]
+    if now != low:
+        raise Fail('the low kernel was overwritten')
 
 TESTS_BY_NAME = {f.__name__: f for f in TESTS}
 

@@ -534,8 +534,7 @@ sh_exec:
         jp sherr
 .fork:  call sc_fork
         jr nc,.ok
-        ld hl,s_again
-        jp sherr
+        jp shfile.xj0_1  ; (shared tail)
 .ok:    ld a,h
         or l
         jr z,sh_child
@@ -641,6 +640,7 @@ shfile: ld a,(SH_INLV)
         jr nc,.bk
         pop hl
         call sc_close
+.xj0_1:
         ld hl,s_again
         jp sherr
 .bk:    ; copy the arguments: $0 = file, $1 ...
@@ -768,6 +768,8 @@ e_sh:
 
 ; ------------------------------------------------------------- /etc/glob
 ;  glob command args... : expand * ? [..] then exec the command
+;  A word starting /dev/cassette is passed on as it is: the cassette is
+;  not a directory, and /dev/cassette/* means the first program on it.
 ;  The buffers match what exec can take: at most GLMAX arguments whose
 ;  strings fit the kernel's KARGSZ byte argument buffer.  A longer list
 ;  is refused here ("Arg list too long", as v1 glob) instead of being
@@ -799,10 +801,17 @@ glob_m:
 .a:     push af
         call argn
         jr z,.done
+        push hl
+        ld de,s_cas             ; /dev/cassette/...: names on the tape, not
+        call tppfx              ; files: kept as typed (/etc/ldx runs
+        pop hl                  ; /dev/cassette/* as the first program)
+        jr z,.cas
         call hasmeta
         jr z,.lit
         call gexpand
         jr glob_m.xj0_53  ; (shared tail)
+.cas:   ld a,1                  ; (a word, as a match is)
+        ld (GL_ANY),a
 .lit:   call gadd
 .xj0_53:
         pop af

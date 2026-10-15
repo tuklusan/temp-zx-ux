@@ -164,6 +164,8 @@ class Machine:
                                       # the one the clock is in)
         self.tnow = 0                 # T-state of the instruction now running
         self.pressed = frozenset()
+        self.ints = 0                 # frame interrupts taken (the keyboard's
+                                      # clock: ZX-UX scans keys in its ISR)
         self._rows = [0x1F] * 8
         self.border = 7
         self._fborder0 = 7
@@ -308,6 +310,7 @@ class Machine:
                         if cpu.iff1 and not cpu._ei_delay:
                             cpu._pending_maskable_interrupt = 0xFF
                             t += cpu._accept_maskable_interrupt()
+                            self.ints += 1
                             nint += FRAME
                     else:
                         nint = (t // FRAME) * FRAME

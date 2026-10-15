@@ -56,6 +56,11 @@ def assemble(sjasm):
             syms[m.group(1)] = int(m.group(2), 16)
     return open(os.path.join(SRC, 'unix.bin'), 'rb').read(), syms
 
+
+def low_kernel():
+    """The low kernel (unix.asm lowk): loaded below the kernel stack."""
+    return open(os.path.join(SRC, 'lowk.bin'), 'rb').read()
+
 # ---------------------------------------------------------------- mkfs
 # ZX-UX v1: an i-node table (ITAB) and the arena, built as the kernel
 # keeps them; the tape loads them right after the resident text.
@@ -196,8 +201,9 @@ def basic_loader():
             b'\xfb:' +                         # CLS
             b'\xfd' + num(KBASE - 1) + b':' +  # CLEAR VAL "24575"
             b'\xf5"ZX-UX UNIX v1 loading":' +   # PRINT "..."
-            b'\xef""\xaf:' +                   # LOAD ""CODE
-            b'\xef""\xaf:' +                   # LOAD ""CODE
+            b'\xef""\xaf:' +                   # LOAD ""CODE  (lowk)
+            b'\xef""\xaf:' +                   # LOAD ""CODE  (unix)
+            b'\xef""\xaf:' +                   # LOAD ""CODE  (fs)
             b'\xf9\xc0' + num(KBASE) +         # RANDOMIZE USR VAL "24576"
             b'\r')
     return struct.pack('>H', 10) + struct.pack('<H', len(line)) + line
@@ -242,7 +248,8 @@ def write_bootinfo(kernel_bytes, free_bytes, process_count):
 
 # The kernel addresses sdk/rvm reads (never writes) while it runs the
 # real system: which process is running, the pids, the screen owners.
-# rvm checks kernel_sha256 against the kernel block on the tape it boots.
+# rvm checks kernel_sha256 and lowk_sha256 against the "unix" and "lowk"
+# code blocks on the tape it boots.
 RVM_SYMBOLS = ('KV', 'NPROC', 'SFREE', 'SZOMB', 'p_stat', 'p_pid', 'cur', 'scrown')
 
 
@@ -251,6 +258,7 @@ def write_kernel_json(kern, syms):
         'format': 'zx-ux-kernel/1',
         'note': 'Written by tools/build.py from the assembled kernel; read by sdk/rvm.',
         'kernel_sha256': hashlib.sha256(kern).hexdigest(),
+        'lowk_sha256': hashlib.sha256(low_kernel()).hexdigest(),
         'kernel_bytes': syms['kend'] - KBASE,
         'syscall': KBASE + 3,
         'symbols': {k: syms[k] for k in RVM_SYMBOLS},
@@ -283,12 +291,16 @@ def main():
         raise SystemExit('boot figures did not settle after six builds')
     RD0 = syms['ITAB']
     open(os.path.join(OUT, 'unix.bin'), 'wb').write(kern)
+    open(os.path.join(OUT, 'lowk.bin'), 'wb').write(low_kernel())
     write_kernel_json(kern, syms)
     open(os.path.join(OUT, 'fs.img'), 'wb').write(rd0)
     bas = basic_loader()
+    low = low_kernel()
     blocks = [
         (header(0, 'ZX-UX', len(bas), 10, len(bas)), 1000),
         (tap_block(0xFF, bas), 1000),
+        (header(3, 'lowk', len(low), syms['LOWK'], 32768), 1000),
+        (tap_block(0xFF, low), 1000),
         (header(3, 'unix', len(kern), KBASE, 32768), 1000),
         (tap_block(0xFF, kern), 1000),
         (header(3, 'fs', len(rd0), RD0, 32768), 1000),

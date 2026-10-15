@@ -264,6 +264,34 @@ def keyboard():
     downs = [f for f in range(40) if seen[f] and (f == 0 or seen[f - 1] != seen[f])]
     check('a third key waits for a free KSTATE set',
           downs[2] >= downs[0] + kb.hold + zxux.Keyboard.SETTLE, str(downs))
+    kb = zxux.Keyboard()
+    kb.type('ab')
+    held = [kb.tick(0) for _ in range(50)]              # no interrupt taken
+    after = [kb.tick(c) for c in range(1, 30)]
+    check('while no interrupt comes (a BEEP, interrupts off) the key stays held: '
+          'the ROM has not seen it yet', held == [('a',)] * 50, str(held[:3]))
+    check('... and once interrupts come, typing goes on', ('b',) in after, str(after))
+
+
+@test
+def typing_through_beeps():
+    s = zxux.Session()
+    s.boot()
+    bg = s.launch(open(prog('beepbg'), 'rb').read(), 'beepbg', (), True)
+    s.run_until(lambda: bg.started is not None, 3000, 'beepbg')
+    for _ in range(100):                                 # well into its BEEPs
+        s.step()
+    t0 = s.m.ints
+    job = s.launch(open(prog('exit7'), 'rb').read(), 'exit7')
+    for _ in range(6000):
+        if job.ended is not None:
+            break
+        s.step()
+    check('a command typed while a background program beeps reaches the shell and runs '
+          '(exit7: status %s)' % job.status, job.status == 7)
+    check('the machine took interrupts meanwhile, one or more a BEEP (%d)' % (s.m.ints - t0),
+          s.m.ints > t0)
+    check('the BEEPs went on (beepbg still running)', bg.ended is None)
 
 
 @test
@@ -482,6 +510,12 @@ def command_line():
     r = headless(['--system', os.path.join(d, 'ZX-UX.tap'), prog('exit7')])
     check('rvm refuses a kernel.json made for another kernel',
           r.returncode == 2 and 'does not describe' in r.stderr, r.stderr.strip())
+    k = json.load(open(os.path.join(ROOT, 'build', 'kernel.json')))
+    k['lowk_sha256'] = '0' * 64
+    json.dump(k, open(os.path.join(d, 'kernel.json'), 'w'))
+    r = headless(['--system', os.path.join(d, 'ZX-UX.tap'), prog('exit7')])
+    check('... or for another low kernel (block "lowk")',
+          r.returncode == 2 and '"lowk"' in r.stderr, r.stderr.strip())
     open(os.path.join(d, 'kernel.json'), 'w').write('{"format": "zx-ux-kernel/1", ')
     r = headless(['--system', os.path.join(d, 'ZX-UX.tap'), prog('exit7')])
     check('rvm refuses a kernel.json that is not JSON',

@@ -8,7 +8,8 @@ interface (call 6003h) is emulated in Python, including the C support calls
 What runs is the same SSX1 file that goes to tape.
 
 This is not ZX-UX: there is no kernel, no scheduler, no console and no
-screen sharing, and the program is loaded at 8000h with all memory above
+screen sharing (a HALT with interrupts on lasts to the next frame, as if
+the kernel's interrupt routine had run), and the program is loaded at 8000h with all memory above
 it.  rvm (without --syscall) runs the real system instead; this mode stays
 for quick, deterministic headless checks (sdk/tests/vm_checks.py, the C48
 conformance suite), which rvm's machine mode cross-checks.
@@ -404,8 +405,14 @@ class VM:
                 t = zx.t + self.tbase
                 if t >= limit:
                     raise Stop('frames')
-                if zx.run((SYS,), min(zx.t + FRAME, limit - self.tbase)):
+                nxt = (t // FRAME + 1) * FRAME          # the next frame interrupt
+                if zx.run((SYS,), min(nxt, limit) - self.tbase):
                     self.syscall(trace)
+                elif zx.cpu.halted and zx.cpu.iff1:
+                    # HALT ends at the frame interrupt (there is no kernel
+                    # here to run: the program carries on after the HALT,
+                    # as beep() does once ZX-UX's ISR has returned)
+                    zx.cpu.halted = False
         except Stop as s:
             self.status = s.status
             return s.why

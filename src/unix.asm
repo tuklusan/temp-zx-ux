@@ -28,8 +28,9 @@
 ; ---------------------------------------------------------------------
 ;  boot  (UNIX v1: u0 'kernel_init')
 ; ---------------------------------------------------------------------
-; default time: Fri Apr 23 1982 00:00:00, the ZX Spectrum's release
-DEFTIME equ 4495*86400
+; default time: Fri Apr 23 1982 09:00:00, the ZX Spectrum's release, as
+; a high-street shop opened (9 am: the usual hour; no record of the day's)
+DEFTIME equ 4495*86400 + 9*3600
 
 ; --- initialize u-area of the process in core (fresh process 1)
 uinit:
@@ -62,9 +63,6 @@ kinit:
         call kexec              ; does not return on success
         ld hl,msg_noinit
         jr panic
-msg_noinit: db "no "            ; panic message around the argument
-initarg: db "/etc/init",0
-initarg_e:
 
 ; ---------------------------------------------------------------------
 ;  panic  (u0 'panic')  HL = message
@@ -82,7 +80,6 @@ panic:
         di
 .h:     halt
         jr .h
-msg_panic: db 10,"panic: ",0
 
 rom_error:                      ; RST 8 from a ROM routine
         ld iy,05C3Ah
@@ -93,7 +90,6 @@ rom_error:                      ; RST 8 from a ROM routine
 .p:     ld sp,KSTACK
         ld hl,msg_romerr
         jr panic
-msg_romerr: db "ROM error",0
 
 ; ---------------------------------------------------------------------
 ;  ISR - ULA 50Hz frame interrupt  (u4 'clock' + u0 'kb_int')
@@ -112,20 +108,7 @@ isr:
         push bc
         push de
         push hl
-        ; sleeping processes (sys sleep), frame counter (sys ticks)
-        call ticksleep
-        ld hl,(fticks)
-        inc hl
-        ld (fticks),hl
-        ; seconds
-        ld hl,ticks
-        inc (hl)
-        ld a,(hl)
-        cp 50
-        jr c,.f2
-        ld (hl),0
-        call tick1s
-.f2:
+        call clk1               ; a frame of time
         ; keyboard - ROM KEYBOARD scans, KEY-INPUT decodes (modes, caps)
         call ROM_KEYBOARD
         ld a,(SV_TVFLAG)
@@ -172,7 +155,19 @@ isr:
         inc hl
         ld (idlet),hl
 .c9:
-        ; scheduler: quantum
+        ; a tape transfer in the last 5 s: the process using the tape keeps
+        ; the CPU, so no other one can hold it (a BEEP runs with interrupts
+        ; off) while the next block goes by.  (dev.asm tapend)
+        ld hl,tapq
+        ld a,(hl)
+        or a
+        jr z,.q0
+        dec (hl)
+        inc hl                  ; (tapqp: whose transfer it was)
+        ld a,(cur)
+        cp (hl)
+        jr z,.q9
+.q0:    ; scheduler: quantum
         ld hl,quant
         ld a,(hl)
         or a
@@ -223,6 +218,20 @@ isr:
         pop af
         ei
         reti
+
+; clk1: one frame of time: sleeping processes (sys sleep), the frame
+;   counter (sys ticks), the clock.  Interrupts off.  IX is kept (tclk).
+clk1:   call ticksleep
+        ld hl,(fticks)
+        inc hl
+        ld (fticks),hl
+        ld hl,ticks
+        inc (hl)
+        ld a,(hl)
+        cp 50
+        ret c
+        ld (hl),0
+        ; (on into tick1s)
 
 ; --- one second elapsed
 tick1s:
@@ -309,6 +318,8 @@ stdraw:
 .p0:    ld a,e
         or a
         jr z,.pn
+        cp SZOMB                ; a process that has ended is not shown,
+        jr z,.pn                ; though its parent has not waited yet
         ld a,c
         add a,'1'
         call stc
@@ -316,10 +327,7 @@ stdraw:
         ld e,':'
         cp SRUN
         jr z,.p1
-        ld e,'.'
-        cp SSLEEP
-        jr z,.p1
-        ld e,'z'
+        ld e,'.'                ; (SSLEEP)
 .p1:    ld a,e
         call stc
         ld a,c
@@ -1003,6 +1011,13 @@ stname: add a,a
 sysexit:
 doexit:                         ; HL = status
         ld (u_tmp),hl
+        ld hl,tapqp             ; a hold on the CPU from the tape ends
+        ld a,(cur)              ; with its process (not handed on to the
+        xor (hl)                ; next one in this slot)
+        jr nz,.nt
+        dec hl                  ; (tapq)
+        ld (hl),a
+.nt:
         ; close all files  (v1: fclose loop)
         ld b,0
 .cl:    push bc
@@ -1558,7 +1573,7 @@ exname: ld a,(u_intr)
         ld (u_intr),a
 .i0:    call scrrel             ; a screen it owned goes back
         ld hl,(u_tmp)
-        call basename
+.nm:    call basename           ; (HL = a path: sys ssxload names the program)
         ld a,(cur)
         push hl
         call stname
@@ -1604,10 +1619,7 @@ tapnam: ld de,ks_cas
 .no:    pop hl
         or 1
         ret
-ks_cas: db "/dev/cassette",0
-ks_tap: db "/dev/tap",0
 
-ks_ldx: db "/etc/ldx",0
 
 ; ---------------------------------------------------------------------
 ;  sys ssxload (40): run an SSX1 program from the cassette.  /etc/ldx
@@ -1646,6 +1658,8 @@ sysssxl:
         ld sp,KSTACK
         call kmode
         ei
+        ld hl,KARGS             ; the status line names the program: argv[0]
+        call exname.nm          ; (/dev/cassette/NAME; /etc/ldx sets it for *)
         ld a,0FFh               ; the window (the caller's): free
         ld (wown),a
         call cursave            ; the SAVE keeps just the u-area
@@ -1654,7 +1668,7 @@ sysssxl:
         ld hl,(wlend)           ; window lent already: no second program
         ld a,h                  ; may be placed in it (exec could not
         or l                    ; take it back)
-        jr nz,.bad
+        jr nz,.mem
         call acompact           ; all free space in one block: the image
         ld bc,(KC_TOT)          ; goes just above the movable ones
         push bc
@@ -1664,16 +1678,20 @@ sysssxl:
         jr nc,.img
         ld a,(u_intr)           ; no room: lend it the window - not to a
         or a                    ; program BREAK cannot stop (background)
-        jr z,.bad
+        jr z,.mem
         push bc
         call lend
         pop bc
         ld a,K_IMG
         call aalloc
-        jr c,.bad
+        jr c,.mem
         ld (wlend),hl
         jr .img
-.bad:   ld hl,1                 ; (status 1)
+.mem:   ld hl,KARGS             ; say so ("/dev/cassette/NAME: not enough
+        call kputs              ; memory"), or a background job just
+        ld hl,ks_nomem          ; vanishes (/etc/ldx's own check counts
+        call kputs              ; the window, which it may not get)
+.bad:   ld hl,1                 ; (status 1; doexit ends the tape's hold)
         jp doexit
 .img:   ld (KC_IMG),hl
         ex de,hl
@@ -1729,6 +1747,8 @@ sysssxl:
         ld de,(KC_IMG)
         ld bc,(u_tmp2)
         call ldirz              ; HL = the relocations, DE = bss start
+        xor a                   ; the file is in: other processes run again
+        ld (tapq),a             ; (tapend held them off)
         pop bc
         push de
         ld de,0
@@ -2020,3 +2040,96 @@ AR0     equ ITAB + NINODE*INOSZ
 
         SAVEBIN "unix.bin", KBASE, bootend-KBASE
         ASSERT WINDOW - AR0 >= 12000
+
+; =====================================================================
+;  low kernel: code and data that the BASIC loader puts in low memory,
+;  at the bottom of the kernel stack's area (block "lowk" on the system
+;  tape, loaded before "unix").  Bytes here cost the arena nothing.  The
+;  loader's own BASIC, variables and work space end below 5D50 while it
+;  loads (STKEND); the kernel stack keeps at least LOWSTK bytes above
+;  (its deepest use: 82 bytes measured over the test suite, under 150
+;  by inspection).
+; =====================================================================
+LOWSTK  equ 180
+        org LOWK
+lowk:
+; strings and tables the kernel reads (kexec, panic, the keyboard)
+ks_cas: db "/dev/cassette",0
+ks_tap: db "/dev/tap",0
+ks_ldx: db "/etc/ldx",0
+ks_nomem: db ": not enough memory",10,0
+; the tape's hold on the CPU (dev.asm tapend, the ISR): loaded as 0
+tapq:   db 0                    ; frames left in which the tape's process
+tapqp:  db 0                    ; is not preempted, and its slot
+msg_noinit: db "no "            ; panic message around the argument
+initarg: db "/etc/init",0
+initarg_e:
+msg_panic: db 10,"panic: ",0
+msg_romerr: db "ROM error",0
+; Spectrum keyword tokens produced by SYMBOL SHIFT in L mode are mapped
+; to the ASCII characters printed in red on the same key (E mode),
+; so  ~ | \ { } [ ]  can be typed without extended mode.
+toktab: db 0E2h,'~'             ; STOP  (SS+A)
+        db 0C3h,'|'             ; NOT   (SS+S)
+        db 0CDh,5Ch             ; STEP  (SS+D) backslash
+        db 0CCh,'{'             ; TO    (SS+F)
+        db 0CBh,'}'             ; THEN  (SS+G)
+        db 0C6h,'['             ; AND   (SS+Y)
+        db 0C5h,']'             ; OR    (SS+U)
+        db 0ACh,'@'             ; AT    (SS+I)  (SS+2 is @ too)
+        db 0C7h,'<'             ; <=
+        db 0C8h,'>'             ; >=
+        db 0C9h,'!'             ; <>
+        db 0
+
+; tclk: a block the ROM moved with interrupts off: the time it took, on
+;   the clock (and the frame counter, the sleeping processes' timers) -
+;   the pilot tone (5 s before a header, 2 s before data) and every bit:
+;   a 0 is two 855 T-state pulses, a 1 two of 1710, so 1 or 2 units of
+;   1710 T; 41 units make a 69888 T frame.  The time spent waiting for
+;   the tape to start is not known.  It runs with interrupts on, so the
+;   ISR counts the time it takes itself (each frame it adds is put on
+;   with them off); returns CF.
+tclk:   ei                      ; (its own time is counted by the ISR)
+        ld ix,100               ; frames: the pilot tone ...
+        ld bc,(u_count)
+        ld a,c
+        sub 17                  ; (a header is 17 bytes)
+        or b
+        jr nz,.d
+        ld ix,250
+.d:     ld hl,(u_base)          ; ... and the bits
+        ld e,0                  ; units into the frame
+.b:     ld a,b
+        or c
+        jr z,.t
+        dec bc
+        ld a,(hl)
+        inc hl
+        scf
+        adc a,a                 ; bit 7 into CF, a marker into bit 0
+.i:     ld d,a
+        ld a,e
+        adc a,1                 ; one unit, two for a 1
+        cp 41
+        jr c,.k
+        sub 41
+        inc ix
+.k:     ld e,a
+        ld a,d
+        add a,a                 ; the next bit; the marker leaves A = 0
+        jr nz,.i
+        jr .b
+.t:     di
+        call clk1               ; (it leaves IX alone)
+        ei
+        dec ix
+        ld a,ixh
+        or ixl
+        jr nz,.t
+        scf
+        ret
+
+lowkend:
+        ASSERT lowkend <= KSTACK - LOWSTK
+        SAVEBIN "lowk.bin", LOWK, lowkend - LOWK

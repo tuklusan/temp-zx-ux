@@ -730,7 +730,7 @@ class Asm:
         for name in sorted(self.externs):
             if name not in symidx and name not in self.syms:
                 addsym(name, 0, 1, 0)
-        for g in self.globals:
+        for g in sorted(self.globals):
             if g not in self.syms:
                 raise AsmError('global %s not defined' % g)
         out = bytearray(b'SSO1')

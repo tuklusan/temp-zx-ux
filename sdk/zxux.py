@@ -79,11 +79,13 @@ class SystemImage:
             raise RvmError('%s: cannot be read (%s)' % (kj, e))
         if not isinstance(info, dict) or info.get('format') != 'zx-ux-kernel/1':
             raise RvmError('%s: not a zx-ux-kernel/1 file' % kj)
-        kern = self._kernel_block()
-        got = hashlib.sha256(kern).hexdigest()
-        if got != info.get('kernel_sha256'):
-            raise RvmError('%s does not describe the kernel on %s (tape kernel sha256 %s); '
-                           'rebuild with tools/build.py' % (kj, self.tape, got[:16]))
+        for name, key in (('unix', 'kernel_sha256'), ('lowk', 'lowk_sha256')):
+            if key not in info and name == 'lowk':
+                continue                # (a kernel before the low block)
+            got = hashlib.sha256(self._code_block(name)).hexdigest()
+            if got != info.get(key):
+                raise RvmError('%s does not describe the kernel on %s (tape "%s" sha256 %s); '
+                               'rebuild with tools/build.py' % (kj, self.tape, name, got[:16]))
         try:
             self.sym = {k: int(info['symbols'][k]) for k in
                         ('NPROC', 'SFREE', 'p_stat', 'p_pid', 'cur', 'scrown')}
@@ -96,13 +98,13 @@ class SystemImage:
             h.update(struct.pack('<H', len(b)) + b)
         self.sha256 = h.hexdigest()
 
-    def _kernel_block(self):
+    def _code_block(self, name):
         b = self.blocks
         for i in range(len(b) - 1):
             if b[i][0] == 0 and len(b[i]) == 19 and b[i][1] == 3 \
-                    and b[i][2:12].rstrip(b' ') == b'unix' and b[i + 1][0] == 0xFF:
+                    and b[i][2:12].rstrip(b' ') == name.encode() and b[i + 1][0] == 0xFF:
                 return b[i + 1][1:-1]
-        raise RvmError('%s: no "unix" code block' % self.tape)
+        raise RvmError('%s: no "%s" code block' % (self.tape, name))
 
 
 # ---------------------------------------------------------------- keyboard
@@ -176,12 +178,17 @@ def parse_keys(text):
 
 class Keyboard:
     """Presses key combinations on the matrix, one at a time, on frame
-    boundaries.  The ROM's KEYBOARD routine (which ZX-UX calls every
-    frame) keeps a released key in one of its two KSTATE sets for five
-    more frames, so a key can only be seen again after that, and a third
-    key only when a set is free: the schedule obeys both rules.
+    boundaries.  The ROM's KEYBOARD routine (which ZX-UX's frame
+    interrupt calls) keeps a released key in one of its two KSTATE sets
+    for five more scans, so a key can only be seen again after that, and
+    a third key only when a set is free: the schedule obeys both rules.
 
-    hold, gap: frames a combination is held, and the least gap after it.
+    Its clock is the interrupts the machine has taken (Machine.ints), not
+    the frames: while interrupts are off (a BEEP, a tape transfer) no key
+    is scanned, so a key stays held until enough scans have seen it, as
+    a person holds a key until the Spectrum answers.
+
+    hold, gap: scans a combination is held, and the least gap after it.
     compat=True types as tools/zxrun.py (hold 4, gap 7, nothing else)."""
     SETTLE = 6
 
@@ -198,8 +205,8 @@ class Keyboard:
         self.released = {}         # main key -> frame it was let go
 
     def add(self, actions):
-        """Actions: ('keys', combo), ('press', combo, frames) to hold it
-        longer than usual, ('wait', frames)."""
+        """Actions: ('keys', combo), ('press', combo, scans) to hold it
+        longer than usual, ('wait', scans) - scans: frame interrupts taken."""
         self.queue.extend(actions)
 
     def type(self, text):
@@ -207,6 +214,12 @@ class Keyboard:
 
     def busy(self):
         return bool(self.queue) or self.state != 'idle'
+
+    def typed(self):
+        """Every key has been pressed and let go (the gap after the last
+        may still be running: it ends only with more interrupts, and a
+        program can turn them off at once - /etc/ldx waiting for the tape)."""
+        return not self.queue and self.state != 'held'
 
     @staticmethod
     def _main(combo):
@@ -354,7 +367,7 @@ class Session:
     def step(self):
         """Run one frame (with the keys due in it); return its Frame."""
         m = self.m
-        m.press(self.kb.tick(m.frame))
+        m.press(self.kb.tick(m.ints))       # (the keyboard runs on scans)
         f = m.run_frame()
         if f is None:
             raise RvmError('the machine was stopped inside a frame')

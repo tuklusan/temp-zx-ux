@@ -256,17 +256,22 @@ _beep:  ex de,hl
         ld (@fy),de
         ld hl,.go
         call @inrom
-        ld hl,@mem0             ; the kernel's bytes back (CF kept)
-        ld de,MEMBOT
-        ld bc,5
+        ld hl,@mem0             ; MEMBOT's bytes back (CF kept), for a
+        ld de,MEMBOT            ; kernel that keeps its clock there (ZX-UX
+        ld bc,5                 ; before rev 5)
         ldir
-        ld hl,0
+        ei                      ; BEEP ran with interrupts off: wait for the
+        halt                    ; next frame's interrupt, so that the
+        ld hl,0                 ; keyboard, clock, BREAK and scheduler run
+                                ; between notes even when a program beeps
+                                ; on and on (a gap of up to 20 ms)
         ret nc
         inc l
         ret
 ; BEEP reads its integer pitch straight from MEMBOT (5C92h), not through
-; MEM, so mem-0 must be MEMBOT while it runs.  The kernel keeps its
-; clock there (tod_h, tod_m, tod_s, stdirty, kcon): save those 5 bytes.
+; MEM, so mem-0 must be MEMBOT while it runs.  ZX-UX kernels before
+; rev 5 kept their clock there (tod_h, tod_m, tod_s, stdirty, kcon): save
+; those 5 bytes and put them back.
 .go:    ld hl,MEMBOT
         ld (MEMV),hl
         ld de,@mem0
