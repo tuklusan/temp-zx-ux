@@ -18,6 +18,7 @@ on:
       - 'tests/**'
       - 'tools/**'
       - 'programs/**'
+      - 'build/**'
       - '.github/workflows/regression.yml'
   workflow_dispatch:
     inputs:
@@ -64,6 +65,8 @@ jobs:
           python3 sdk/lib/build.py
           git status --short
           git diff --exit-code
+      - name: The committed C48 programs and tapes are a fresh full build
+        run: python3 tools/mktapes.py --check
       - name: Test snapshot, C48 tapes, multitask snapshot
         run: |
           sh tools/t.sh || true
@@ -115,6 +118,7 @@ jobs:
               python3 tools/ci_shard.py --check runs 4
               python3 tools/ci_shard.py --check suite 2
               python3 sdk/tests/test_rtap.py
+              python3 tests/test_mktapes.py
               python3 sdk/tests/test_ras.py
               python3 sdk/tests/test_z80fast.py
               python3 tests/test_boot_v1.py

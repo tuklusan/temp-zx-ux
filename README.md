@@ -98,6 +98,13 @@ To build the included C48 program collection, run:
 python3 tools/mktapes.py
 ```
 
+Every run is a full rebuild: all programs are compiled afresh and a
+file in `build/c48` that no program makes is removed.
+`python3 tools/mktapes.py --check` changes nothing and fails if any
+file in `build/` is not what a rebuild makes; CI and
+`tools/mkrelease.py` run it, so stale programs are never committed or
+released.
+
 This writes the `c48/` program files and the following tapes:
 
 - `build/c48-apps.tzx`, `build/c48-games.tzx`

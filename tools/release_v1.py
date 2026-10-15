@@ -329,6 +329,8 @@ def main():
     clear_verified_release()
     step('release-copy', [PYTHON, '-B', 'tools/mkrelease.py', str(BUILD / 'logs')])
     shutil.copyfile(logs['release-copy'], RELEASE / 'logs/release-copy.txt')
+    # every released program and tape is what a full rebuild makes, byte for byte
+    step('c48-release-fresh', [PYTHON, '-B', 'tools/mktapes.py', '--check', '--release'])
     for name, source in (
         ('fuse-login.png', proof_paths['screen']),
         ('fuse-login.json', proof_paths['json']),

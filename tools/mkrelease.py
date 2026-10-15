@@ -2,6 +2,8 @@
 """Copy finished ZX-UX files to release/ without wrapping them in archives.
 
 Run the build and tests first. You may pass a folder containing test logs.
+It refuses to copy anything unless build/'s C48 programs and tapes are
+exactly what a full rebuild makes (tools/mktapes.py --check).
 """
 from pathlib import Path
 import shutil
@@ -64,7 +66,24 @@ def copy_fresh_proofs() -> None:
                 f'proofs/native-env1/{name}')
 
 
+def stale_c48() -> list:
+    """[(path, problem)]: build/'s C48 files against a full rebuild."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import mktapes
+    return mktapes.stale([str(BUILD)])[str(BUILD)]
+
+
+def require_fresh_c48() -> None:
+    problems = stale_c48()
+    for rel, problem in problems:
+        print(f'build/{rel}: {problem}')
+    if problems:
+        raise SystemExit('C48 programs in build/ are not a fresh full build: '
+                         'run tools/mktapes.py first')
+
+
 def main(arguments: list[str]) -> None:
+    require_fresh_c48()
     RELEASE.mkdir(parents=True, exist_ok=True)
     for name in ('ZX-UX.tzx', 'ZX-UX.tap', 'ZX-UX-c48.tzx',
                  'ZX-UX-multitask.z80', 'ZX-UX-multitask.png'):

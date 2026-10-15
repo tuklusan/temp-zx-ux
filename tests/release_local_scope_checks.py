@@ -52,7 +52,8 @@ class LocalReleaseChecks(unittest.TestCase):
                      'c48-target', 'assembler-comparison', 'rom-tape-boot',
                      'system-regression', 'c48-program-tapes', 'c48-emulator',
                      'c48-v1-native', 'c48-v1-bytecode', 'lm-new-sdk', 'lm-memory-bound',
-                     'hanoi-queens8', 'gallery', 'fuse-independent-boot', 'release-copy'):
+                     'hanoi-queens8', 'gallery', 'fuse-independent-boot', 'release-copy',
+                     'c48-release-fresh'):
             self.assertIn("step('" + name + "'", text)
         self.assertIn('validate_boot_command(', text)
         self.assertIn('validate_boot_proof(', text)
