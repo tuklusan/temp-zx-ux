@@ -56,7 +56,9 @@ def reproducible():
     runs = json.load(open(os.path.join(ROOT, 'sdk', 'tests', 'runs.json')))
     cases = [('chess', os.path.join(corpus, runs['chess']['dir'], 'chess.c'), [], 'c48/chess.ssx'),
              ('hanoi-mt', os.path.join(corpus, 'demos', 'hanoi.c'),
-              ['--bytecode', '--stack', '400', '--udgs', '16'], 'c48/hanoi-mt.ssx')]
+              ['--bytecode', '--stack', '400', '--udgs', '16'], 'c48/hanoi-mt.ssx'),
+             ('mobius-mt', os.path.join(corpus, 'demos', 'mobius.c'), ['--bytecode'],
+              'c48/mobius-mt.ssx')]
     for name, src, extra, rel in cases:
         inside = open(os.path.join(fresh, rel), 'rb').read()
         alone = [compile_alone(src, extra, seed) for seed in (0, 12345)]

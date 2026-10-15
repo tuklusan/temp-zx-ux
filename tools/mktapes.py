@@ -10,7 +10,8 @@ rcc -> build/c48/NAME.ssx (native code, or SSB1 bytecode when native code
 would not fit), then rtap writes
   build/c48/NAME.tap              one program
   build/c48-<group>.tzx           the programs of a group (apps, demos, ...)
-  build/c48-multitask.tzx         hanoi and queens8, to run together
+  build/c48-multitask.tzx         hanoi and queens8, mobius and torus: to run
+                                  together (-mt.ssx builds)
   build/ZX-UX-c48.tzx          ZX-UX itself followed by every program
 Boot ZX-UX, log in, play a tape and type /dev/cassette/NAME [args].
 
@@ -91,7 +92,20 @@ def build(dest):
         hdr, dat = rtap.records(open(ssx, 'rb').read(), name)
         blocks += [(1000, hdr), (0 if name == 'hanoi' else 2000, dat)]   # pause 0: the tape stops
         made.append('c48/%s-mt.ssx' % name)
-    t = b'ZX-UX C48 programs: hanoi and queens8 together'
+    # mobius and torus together, in the background: bytecode (with the
+    # stacks rcc measures) makes each about 600 bytes smaller, so that
+    # both fit in the arena after login - a background program cannot
+    # borrow the window.  They share the whole screen: each draws over
+    # the other's picture.
+    for name in ('mobius', 'torus'):
+        src = os.path.join(corpus, 'demos', name + '.c')
+        ssx = os.path.join(out, name + '-mt.ssx')
+        if driver.main([src, '-o', ssx, '--bytecode']):
+            raise SystemExit('rcc failed: %s' % name)
+        hdr, dat = rtap.records(open(ssx, 'rb').read(), name)
+        blocks += [(1000, hdr), (0 if name == 'mobius' else 2000, dat)]
+        made.append('c48/%s-mt.ssx' % name)
+    t = b'ZX-UX C48 programs: hanoi and queens8, then mobius and torus, together'
     rtap.write(os.path.join(dest, 'c48-multitask.tzx'), head + bytes([0x30, len(t)]) + t, blocks)
     made.append('c48-multitask.tzx')
     system = os.path.join(ROOT, 'build', 'ZX-UX.tzx')

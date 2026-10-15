@@ -343,6 +343,7 @@ Rev 5 adds:
 - **the clock** within 2 s of the time a load took (`tape_clock`);
 - **BEEPs:** a program calling BEEPER with no break holds everything up, the library's `beep()`
   lets others run (`beep_shares_cpu`);
+- **mobius and torus** together in the background (`mobius_torus_together`);
 - **the low kernel** byte for byte after a busy session (`low_kernel`).
 
 `tests/ssxrun.py` runs the whole C48 corpus from cassette (`SPEC-SDK-R2` §8).

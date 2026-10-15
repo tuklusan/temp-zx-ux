@@ -1465,6 +1465,30 @@ def low_kernel(s):
     if now != low:
         raise Fail('the low kernel was overwritten')
 
+
+@test
+def mobius_torus_together(s):
+    """mobius and torus from build/c48-multitask.tzx (bytecode, tools/
+    mktapes.py) both load in the background - a background program
+    cannot borrow the window, so both must fit in the arena - and both
+    run (each gets CPU time)"""
+    import rtap
+    s.login()
+    for n in ('mobius', 'torus'):
+        f = os.path.join(ROOT, 'build', 'c48', n + '-mt.ssx')
+        if not os.path.exists(f):
+            raise Fail('%s missing: run tools/mktapes.py' % f)
+        s.zx.type('/dev/cassette/%s &\n' % n)
+        run_past(s, play(s, rtap.records(open(f, 'rb').read(), n)), 200)
+        if slot_named(s, n) is None:
+            raise Fail('%s did not start:\n%s' % (n, s.screen()))
+    slots = [slot_named(s, n) for n in ('mobius', 'torus')]
+    before = [cpu_ticks(s, x) for x in slots]
+    s.zx.run(500)
+    ran = [cpu_ticks(s, x) - b for x, b in zip(slots, before)]
+    if min(ran) <= 0:
+        raise Fail('both should run: CPU ticks %s' % ran)
+
 TESTS_BY_NAME = {f.__name__: f for f in TESTS}
 
 
