@@ -16,6 +16,7 @@ run in the window.
 import json
 import os
 import shutil
+import struct
 import sys
 import tempfile
 import time
@@ -48,13 +49,15 @@ def prog(name):
     return out
 
 
-def drive(args, script, timeout=120):
+def drive(args, script, timeout=120, mute=True, setup=None):
     """Open the window for rvm ARGS; script(app, t) is called every 50 ms
     with the seconds since the start; returns (status, events, app)."""
     o = rvm.parse(args)
-    o.mute = True
+    o.mute = mute
     probe = os.path.join(TMP, 'probe.jsonl')
     app = rvmgui.App(o, probe=probe)
+    if setup:
+        setup(app)
     t0 = time.monotonic()
 
     def tick():
@@ -144,6 +147,66 @@ def main():
           '(%d frames, %d painted, %.2f s)' % (len(nums), painted, span),
           status == 255 and nums == list(range(nums[0], nums[0] + len(nums)))
           and len(nums) == app.w.sent and painted > 50 and span >= (painted - 1) * 0.045)
+
+    print('sound')
+    import rvmsound
+
+    class Speaker:
+        """A sound device playing in real time: records what it is given,
+        and counts the times it ran out of sound once playing."""
+        name = 'test speaker'
+
+        def __init__(self):
+            self.data = bytearray()
+            self.start = None
+            self.before = 0.0
+            self.gaps = 0
+
+        def queued(self):
+            if self.start is None:
+                return 0.0
+            q = len(self.data) / 2 / rvmsound.RATE - (self.before + time.monotonic() - self.start)
+            if q < 0:
+                self.gaps += 1
+                self.start = None
+                return 0.0
+            return q
+
+        def write(self, pcm):
+            self.queued()
+            if self.start is None:
+                self.start = time.monotonic()
+                self.before = len(self.data) / 2 / rvmsound.RATE
+            self.data += pcm
+
+        def close(self, drain):
+            pass
+    speaker = Speaker()
+    real_open = rvmsound.open_output
+    rvmsound.open_output = lambda mute=False: rvmsound.Output(stream=speaker)
+
+    def record(app):
+        app.r.pcm = bytearray()            # the exact samples, as --wav keeps them
+    try:
+        status, ev, app = drive([prog('beeps')], close_when_ended, mute=False, setup=record)
+    finally:
+        rvmsound.open_output = real_open
+    fr = frames_of(ev)
+    want = rvmsound.DCBlock().process(bytes(app.r.pcm))
+    check('the window streams every frame\'s sound, in order, nothing between frames '
+          '(%.2f s of sound, %d frames)' % (len(speaker.data) / 2 / rvmsound.RATE, len(fr)),
+          len(want) > 2 * rvmsound.RATE and bytes(speaker.data) == want)
+    loud = max(abs(v) for v in struct.unpack('<%dh' % (len(want) // 2), want))
+    check('the BEEPs are in it (peak %d)' % loud, loud > rvmsound.AMPLITUDE // 2)
+    steady = fr[len(fr) // 5:]
+    rate = (len(steady) - 1) / (steady[-1]['t'] - steady[0]['t'])
+    check('the sound stream sets the pace: %.2f frames a second (the Spectrum: 50.08)' % rate,
+          49.0 < rate < 50.6)
+    # (a busy host - another test in parallel - can starve the machine
+    # thread for a moment: a few gaps are the host's, not rvm's)
+    check('the speaker hardly ran dry while the program played (%d times, 3 allowed)'
+          % speaker.gaps, speaker.gaps <= 3)
+    check('the program ends normally (exit 0)', status == 0)
 
     print('the last picture')
     pic = {}

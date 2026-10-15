@@ -18,7 +18,9 @@ given): every emulated frame is shown, none is dropped; if the host is
 slow the program slows down instead.  Shift+Space is BREAK while the
 program runs; when it has ended, the footer says so and Shift+Space (or
 the close button) closes the window.  The beeper plays at its exact
-pitch.
+pitch, as one continuous stream that also keeps the Spectrum's 50.08
+frames a second (waveOut on Windows, paplay or aplay on Linux; --verbose
+says which).
 
 Options:
   --keys TEXT     keys typed once the program has started (see below)

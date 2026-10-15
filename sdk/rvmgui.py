@@ -1,10 +1,12 @@
 """rvm's window: ZX-UX on the emulated Spectrum, frame by frame.
 
-The machine runs in a worker thread; the window (Tk, in the main thread)
-takes the frames from a short queue and paints them, at most one every
-20 ms.  The worker waits while the queue is full, so on a fast host the
-program runs at the Spectrum's 50 frames a second and on a slow one it
-runs slower.  No frame is ever dropped: each one leaves the queue and is
+The machine runs in a worker thread at the Spectrum's own rate, 50.08
+frames a second: the sound stream sets the pace (rvmsound.Output: the
+worker waits while 0.08 s of sound is queued), or a wall clock when there
+is no sound.  The window (Tk, in the main thread) takes the frames from
+a short queue and paints them as they come, one per timer tick.  The
+worker waits while the queue is full, so on a slow host the program runs
+slower.  No frame is ever dropped: each one leaves the queue and is
 painted (a frame identical to the one before needs no new paint).  FLASH
 follows the emulated frame count, the border is drawn line by line.
 
@@ -32,7 +34,7 @@ if HERE not in sys.path:
 import zxscreen                                   # noqa: E402
 import zxux                                       # noqa: E402
 
-FRAME_MS = 20
+POLL_MS = 4               # the window looks for a new frame this often
 BREAK_HOLD = 30           # frames BREAK is held (under the ROM's 35-frame
                           # key repeat delay, so no space is typed after it)
 MAX_PENDING = 16          # typed keys waiting; more are dropped (key repeat)
@@ -61,7 +63,7 @@ class Worker(threading.Thread):
         self.inq = queue.Queue()
         self.stop = threading.Event()
         self.error = None
-        self.player = None
+        self.audio = None               # rvmsound.Output: the sound and the clock
         self.sent = 0                   # frames handed to the window
 
     def put(self, msg):
@@ -82,16 +84,15 @@ class Worker(threading.Thread):
             traceback.print_exc()
             self.put(Msg('error', text=self.error))
         finally:
-            if self.player:
-                self.player.close()
+            if self.audio:
+                self.audio.close(drain=not self.stop.is_set())
 
     def _run(self):
         r = self.r
         self.put(Msg('status', text='Starting ZX-UX ...'))
         r.start()
-        if not self.mute:
-            import rvmsound
-            self.player = rvmsound.Player()
+        import rvmsound
+        self.audio = rvmsound.open_output(self.mute)
         self.put(Msg('status', text=self._running_text()))
         ended = False
         kb = r.session.kb
@@ -104,8 +105,7 @@ class Worker(threading.Thread):
                 if len(kb.queue) < MAX_PENDING or acts[0][1] == ('CS', 'SPACE'):
                     kb.add(acts)
             f, pcm, sounding = r.frame()
-            if self.player:
-                self.player.frame(pcm, sounding)
+            self.audio.frame(pcm, sounding)             # plays it; waits for the time
             if not self.put(Msg('frame', frame=f)):
                 return
             self.sent += 1
@@ -157,7 +157,6 @@ class App:
         self.ended = False
         self.closed = False
         self.last = None
-        self.next_due = 0.0
         self.painted = 0
         self.taken = 0
         self.root = tk.Tk()
@@ -206,13 +205,11 @@ class App:
             self.probe.flush()
 
     def tick(self):
-        """Take the next message; frames at most one per FRAME_MS, on a
-        fixed cadence (a late frame does not push the next one later)."""
+        """Take the messages waiting, up to and including one frame: the
+        worker keeps the time, the window paints each frame as it comes."""
         if self.closed:
             return
-        period = FRAME_MS / 1000.0
-        now = time.monotonic()
-        while now >= self.next_due:
+        while True:
             try:
                 msg = self.q.get_nowait()
             except queue.Empty:
@@ -225,12 +222,10 @@ class App:
                 self.fail('%s: %s' % (type(e).__name__, e))
                 return
             if msg.kind == 'frame':
-                self.next_due = max(self.next_due + period, now - period)
                 break
         if self.ended and not self.o.keep and self.q.empty():
             return
-        delay = max(1, int((self.next_due - time.monotonic()) * 1000))
-        self.root.after(delay, self.tick)
+        self.root.after(POLL_MS, self.tick)
 
     def fail(self, text):
         self.ended = True
@@ -300,6 +295,8 @@ class App:
         self.root.mainloop()
         self.w.stop.set()
         self.w.join(timeout=2)
+        if self.o.verbose and self.w.audio:
+            print('rvm: %s' % self.w.audio.describe(), file=sys.stderr)
         if self.r.why:
             return self.r.status_code()
         return 130 if self.r.fg is not None else 0

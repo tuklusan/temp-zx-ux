@@ -118,6 +118,7 @@ jobs:
               python3 tools/ci_shard.py --check runs 4
               python3 tools/ci_shard.py --check suite 2
               python3 sdk/tests/test_rtap.py
+              python3 sdk/tests/test_rvmsound.py
               python3 tests/test_mktapes.py
               python3 sdk/tests/test_ras.py
               python3 sdk/tests/test_z80fast.py
